@@ -6,12 +6,13 @@
 
 
 int main(int argc, char **argv){
-	char buf[1024];
-	FILE *fp1 = fopen(argv[1], "ab+");
 	char str[] = "yes";
+
+	/*char buf[1024];
+	FILE *fp1 = fopen(argv[1], "ab+");
    fwrite(str , 1 , sizeof(str) , fp1);
 	fread(buf, 1024, 1, fp1);
-	
+	*/
 	char buf2[1024];
 	int fd1 = open("foo.txt", O_CREAT | O_RDWR);
 	write(fd1, str, sizeof(str));

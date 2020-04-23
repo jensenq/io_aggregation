@@ -2,14 +2,16 @@
 	-contains the code to intercept open, read, write, fopen, fread, fwrite
 	-logs filename, type of access, and number of bytes accessed to file_access_log.txt 
 
-*compile with
+*compile with make, or:
 	gcc -shared -fPIC io_intercept.c -o io_intercept.so -ldl
 
-*run any program through this by
+**this creates the interception library file, io_intercept.so
+
+*run any program through this with:
 	LD_PRELOAD=$PWD/io_intercept.so ./program
 
-*this will capture all io from everything this program runs on
+**this will capture all io from everything this program runs on
 
 *todo: 
-	-capture the name of the program that called io or fork()
+	-capture the name of the process that called io or fork()
 

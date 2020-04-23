@@ -39,7 +39,7 @@ ssize_t read(int fd, void *buf, size_t count){
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
 	char *fname = recover_filename(fileno(stream));
-	log_access(fname, "read", size*nmemb);
+	log_access(fname, "fread", size*nmemb);
 	free(fname);
 	return orig_fread(ptr, size, nmemb, stream);
 }
@@ -55,7 +55,7 @@ ssize_t write(int fd, const void *buf, size_t count){
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
 	char *fname = recover_filename(fileno(stream));
-	log_access(fname, "write", size*nmemb);
+	log_access(fname, "fwrite", size*nmemb);
 	free(fname);
 	return orig_fwrite(ptr, size, nmemb, stream);
 }
@@ -78,7 +78,7 @@ void log_access(char* fname, char* type, size_t num_bytes){
 	if (f == NULL){
 		printf("Couldn't log %s to file_access_log.txt\n", fname);
 	}
-	fprintf(f, "%s, %s, %zu\n", fname, type, num_bytes);
+	fprintf(f, "filename: %s, type: %s, bytes: %zu\n", fname, type, num_bytes);
 	fclose(f);
 }
 
