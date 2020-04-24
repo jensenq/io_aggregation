@@ -13,5 +13,9 @@
 **this will capture all io from everything this program runs on
 
 *todo: 
-	-capture the name of the process that called io or fork()
+	- capture the name of the process that called io or fork()
+	- find a way to run my interception's main first, then call the other program's main
+	- create a hashtable for the io_aggregation_buf so multiple files can have their 
+	    writes aggregated separately.
+   -
 

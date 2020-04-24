@@ -8,49 +8,53 @@
 
 char* recover_filename(int fd);
 void log_access(char* fname, char* type, size_t num_bytes);
-void	place_in_buf(void* buf, size_t count);
+void	place_in_buf(const void* buf, size_t count);
+void flush_write_buf();
 
-const int MAX_WRITES = 10; // number of writes before flushing
-const size_t MAX_BUF SIZE = 32000000; //total buffer size before flushing
-const size_t MAX_WRITE_SIZE = MAX_BUF_SIZE/MAX_WRITES; //size in bytes allocated for each write
+#define MAX_WRITES 10 // number of writes before flushing
+#define MAX_BUF_SIZE 32000000 //total buffer size before flushing
+#define MAX_WRITE_SIZE MAX_BUF_SIZE/MAX_WRITES //size in bytes allocated for each write
 
 typedef struct file_buf{
 
 	 char* filename;
-	 char* write_buf[MAX_WRITES]; // buffer where all writes are stored until flushed
-	 int write_index = 0;
+	 //char write_buf[MAX_WRITES][MAX_WRITE_SIZE]; // buffer containing up to 10 writes. each write can only be MAX_WRITE_SIZE long.
+	 char* write_buf[MAX_WRITES]; // buffer containing up to 10 writes. each write can only be MAX_WRITE_SIZE long.
+	 int write_index;
 
 } file_buf;
 
-file_buf* file_bufs;
-
+file_buf tmp;
 
 /* places the data of a write() into the write buffer */
-void place_in_buf(void* buf, size_t size){
+void place_in_buf(const void* buf, size_t size){
 
-	 if(size<MAX_WRITE_SIZE){
-		  write_buf[write_index] = (char*) buf;
-		  write_index++;
+	 if(size <= MAX_WRITE_SIZE){
+		  tmp.write_buf[tmp.write_index] = (char*) buf;
+		  tmp.write_index++;
 
-		  if(write_index == MAX_WRITES-1){
+		  if(tmp.write_index == MAX_WRITES-1){
 				flush_write_buf();
 		  }
 	 }
 }
 void flush_write_buf(){
-	 FILE *f = fopen(filename, "wb+");
-	 fwrite(write_buf, sizeof(char), sizeof(write_buf), f);
+	 FILE *f = fopen(tmp.filename, "wb+");
+	 fwrite(tmp.write_buf, sizeof(char), sizeof(tmp.write_buf), f);
 	 fclose(f);
-	 write_index = 0;
+	 tmp.write_index = 0;
 }
+
 
 // intercept main, allocate memory for the io buffer
 int main(int argc, char* argv[]){
 	 int (*orig_main)(int argc, char* argv[]) = dlsym(RTLD_NEXT, "main");
-	 
+	 tmp.filename = "tmp.txt";
+	 tmp.write_index = 0;
 	 for(int i=0; i>MAX_WRITES; i++){
-		  write_buf[i] = (char*) malloc(MAX_BUF_SIZE);
+		  tmp.write_buf[i] = malloc(MAX_WRITE_SIZE);
 	 }
+
 	 return orig_main(argc, argv);
 }
 /*
@@ -94,7 +98,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 ssize_t write(int fd, const void *buf, size_t count){
 	ssize_t (*orig_write)(int, const void*, size_t) = dlsym(RTLD_NEXT, "write");
 	char *fname = recover_filename(fd);
-	place_in_buf(buf, count)
+	place_in_buf(buf, count);
 	free(fname);
 	return orig_write(fd, buf, count);
 }
