@@ -6,7 +6,7 @@
 
 
 int main(int argc, char **argv){
-	char* str = "ddd";
+	char* str = "d";
 
 	FILE *fp1 = fopen(argv[1], "ab+");
    fwrite(str , 1 , sizeof(str) , fp1);

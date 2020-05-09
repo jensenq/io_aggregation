@@ -5,15 +5,16 @@
 * compile with make, or:
 	`gcc -shared -fPIC io_intercept.c -o io_intercept.so -ldl`
 
-** this creates the interception library file, io_intercept.so
+- this creates the interception library file, io_intercept.so
 
 * run any program through this with:
 	`LD_PRELOAD=$PWD/io_intercept.so ./program`
 
-** this will capture all io from everything this program runs on
+- this will capture all io from everything this program runs on
 
 * todo: 
 	 - catch a write
+		  - capture the mode when opening a file (r/w/b/+)
 	 - put in a data structure
 	 - return status
 	 - flush 1 write
