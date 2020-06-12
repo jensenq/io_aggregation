@@ -138,10 +138,11 @@ ssize_t write(int fd, const void *buf, size_t count){
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
 
-	 file_buf fb = get_fb_by_fd(fileno(stream));
+	 /*file_buf fb = get_fb_by_fd(fileno(stream));
 	 if(place_in_buf(fb, ptr, size*nmemb) == -1){ // write too big
 		  return orig_fwrite(ptr, size, nmemb, stream);	  	 
-	 }
+	 }*/
+    printf("fwrite intercepted\n");
 	 return 0; //what should the ret val be?
 }
 

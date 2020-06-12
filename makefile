@@ -1,11 +1,14 @@
 
-all: io_intercept.so test intercept
+all: io_intercept.so test
 
 io_intercept.so: io_intercept.c
-	gcc -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
+	gcc -g -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
 
 test: test.c
-	gcc test.c -o test
+	gcc -g test.c -o test
 
-intercept: io_intercept.so test
-	LD_PRELOAD=$(PWD)/io_intercept.so ldd test
+run: io_intercept.so test
+	LD_PRELOAD=$(PWD)/io_intercept.so ./test
+
+clean:
+	rm test io_intercept.so
