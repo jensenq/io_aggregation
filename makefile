@@ -1,5 +1,5 @@
 
-all: io_intercept.so test
+all: io_intercept.so test 
 
 io_intercept.so: io_intercept.c
 	gcc -g -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
