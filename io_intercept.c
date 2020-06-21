@@ -15,16 +15,14 @@ typedef struct file_buf{
 	int fd;
 	size_t curr_size;         // how full the buffer is in bytes
 	unsigned char* write_buf; // one contiguous chunk of memory
+	struct file_buf* next;    // this is also just a node in a linked list of fb's
 } file_buf;
 
 typedef struct master_aggregator{
-	int is_initialized;
-	size_t num_fbs;
-	file_buf** file_bufs;
+	file_buf* file_bufs;
 } master_aggregator;
 
-/* ===== uhhh ===== */
-
+/* ===== */
 int append_write(file_buf* fb, const void* buf, size_t size);
 file_buf* get_fb_by_fd(int fd);
 void flush_buf();
@@ -34,17 +32,20 @@ master_aggregator master;
 
 
 
-/* returns the file buffer associated with a file descriptor
+/* returns a pointer to the file buffer associated with a file descriptor
  */
 file_buf* get_fb_by_fd(int fd){
 	 
-	 for(int i=0; i<master.num_fbs; i++){ 
-		  if(master.file_bufs[i]->fd == fd) {
-				return master.file_bufs[i];
-		  }
-	 }
+	file_buf* fbp = master.file_bufs;
+	while(fbp != NULL){
 
-	 return NULL;
+		if(fbp->fd = fd){
+			return fbp;
+		}
+		fbp = fbp->next;
+	}
+
+	return NULL;
 }
 
 /* places the data of a write() into the write buffer
@@ -64,18 +65,16 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 	return -1;
 }
 
+/* creates a new file buffer, and adds it to the global list of file buffers
+ *  note: inserted at the head (files recently opened are more likely to be opened soon) 
+ */
 void insert_fb(int fd){
-	if(!master.is_initialized){
-		master.file_bufs = malloc(sizeof(file_buf*));
-		master.is_initialized = 1;
-	}
 	if(get_fb_by_fd(fd) != NULL){ //already exists
 		printf("Warning to dev: this file buffer is already in memory");
 	}
 	else{
-		file_buf new_fb = {fd, 0, NULL};
-		master.file_bufs[master.num_fbs] = &new_fb;
-		master.num_fbs++;
+		file_buf new_fb = {fd, 0, NULL, master.file_bufs}; 
+		master.file_bufs = &new_fb;
 	}
 }
 
@@ -118,7 +117,7 @@ int open(const char *filename, int flags, ...){
 
 FILE* fopen(const char *filename, const char *mode){
 	FILE* (*orig_fopen)(const char*, const char*) = dlsym(RTLD_NEXT, "fopen");
-	printf("fopen intercepted\n");
+	//printf("fopen intercepted\n");
 	FILE* orig_retval = orig_fopen(filename, mode);
 	insert_fb(fileno(orig_retval));
 	return orig_retval;
@@ -150,7 +149,8 @@ ssize_t write(int fd, const void *buf, size_t count){
 }
 
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
-	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
+	int x = 3;
+	//size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
 	printf("fwrite intercepted\n");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
