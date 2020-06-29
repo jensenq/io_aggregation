@@ -22,13 +22,13 @@ typedef struct master_aggregator{
 	file_buf* file_bufs;
 } master_aggregator;
 
-/* ===== */
+/* ===== GLOBAL ===== */
+master_aggregator master;
+
 int append_write(file_buf* fb, const void* buf, size_t size);
 file_buf* get_fb_by_fd(int fd);
 void flush_buf();
 
-/* ===== GLOBAL ===== */
-master_aggregator master;
 
 
 
@@ -39,7 +39,7 @@ file_buf* get_fb_by_fd(int fd){
 	file_buf* fbp = master.file_bufs;
 	while(fbp != NULL){
 
-		if(fbp->fd = fd){
+		if(fbp->fd == fd){
 			return fbp;
 		}
 		fbp = fbp->next;
@@ -120,6 +120,7 @@ FILE* fopen(const char *filename, const char *mode){
 	//printf("fopen intercepted\n");
 	FILE* orig_retval = orig_fopen(filename, mode);
 	insert_fb(fileno(orig_retval));
+	fclose(orig_retval);
 	return orig_retval;
 }
 
@@ -149,9 +150,8 @@ ssize_t write(int fd, const void *buf, size_t count){
 }
 
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
-	int x = 3;
-	//size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
-	printf("fwrite intercepted\n");
+	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
+	printf("asoifghasoigna");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
 	
