@@ -15,8 +15,9 @@
 	[x] catch a write
 	[x] intercept anything
 	    - capture the mode when opening a file (r/w/b/+)
+	[x] transparently return status
+	[x] create data structure for file buffer
 	[ ] put in a data structure
-	[ ] return status
 	[ ] flush 1 write
 	[ ] flush n writes
 	[ ] catch a close()
@@ -26,8 +27,9 @@
 	   writes aggregated separately.
 	[ ] catch a read() for a file that's currently being aggregated
 	[ ] hdf5
-
+	[ ] handle multiple processes
 	[ ] misc
 		[ ] make return values for interceptions MATCH the real versions so its transparent
-		[ ] turn master's array of fb's into a linked list
+		[x] turn master's array of fb's into a linked list
 		[ ] delete a file_buffer
+		[ ] be able to close a file after open() is called on it (so it doesnt stay open the whole time)

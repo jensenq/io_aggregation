@@ -18,12 +18,9 @@ typedef struct file_buf{
 	struct file_buf* next;    // this is also just a node in a linked list of fb's
 } file_buf;
 
-typedef struct master_aggregator{
-	file_buf* file_bufs;
-} master_aggregator;
 
 /* ===== GLOBAL ===== */
-master_aggregator master;
+file_buf* file_bufs = NULL;
 
 int append_write(file_buf* fb, const void* buf, size_t size);
 file_buf* get_fb_by_fd(int fd);
@@ -36,16 +33,16 @@ void flush_buf();
  */
 file_buf* get_fb_by_fd(int fd){
 	 
-	file_buf* fbp = master.file_bufs;
-	while(fbp != NULL){
+	file_buf* tmp = file_bufs;
+	while(tmp != NULL){
 
-		if(fbp->fd == fd){
-			return fbp;
+		if(tmp->fd == fd){
+			return tmp;
 		}
-		fbp = fbp->next;
+		tmp = tmp->next;
 	}
 
-	return NULL;
+	return tmp;
 }
 
 /* places the data of a write() into the write buffer
@@ -73,8 +70,13 @@ void insert_fb(int fd){
 		printf("Warning to dev: this file buffer is already in memory");
 	}
 	else{
-		file_buf new_fb = {fd, 0, NULL, master.file_bufs}; 
-		master.file_bufs = &new_fb;
+		file_buf* old_head = file_bufs;
+		file_buf* new_fb = (file_buf*) malloc(sizeof(file_buf));
+		new_fb->fd = fd;
+		new_fb->curr_size = 0;
+		new_fb->write_buf = NULL;
+		new_fb->next = old_head;
+		file_bufs = new_fb; //global pointer points to new head
 	}
 }
 
@@ -107,36 +109,47 @@ int main(int argc, char* argv[]){
 }
 */
 
-
 /* ===== INTERCEPTION ===== */
-
-int open(const char *filename, int flags, ...){
-	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
-	return orig_open(filename,flags);
-}
 
 FILE* fopen(const char *filename, const char *mode){
 	FILE* (*orig_fopen)(const char*, const char*) = dlsym(RTLD_NEXT, "fopen");
-	//printf("fopen intercepted\n");
 	FILE* orig_retval = orig_fopen(filename, mode);
 	insert_fb(fileno(orig_retval));
-	fclose(orig_retval);
 	return orig_retval;
-}
-
-pid_t fork(){
-	pid_t (*orig_fork)() = dlsym(RTLD_NEXT, "fork");
-	return orig_fork();
-}
-
-ssize_t read(int fd, void *buf, size_t count){
-	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
-	return orig_read(fd, buf, count);
 }
 
 size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
 	return orig_fread(ptr, size, nmemb, stream);
+}
+
+size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
+	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
+	int fd = fileno(stream);
+	file_buf* fb = get_fb_by_fd(fd);
+	
+	if(append_write(fb, ptr, size*nmemb) == -1){ // write too big
+	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
+	}
+	return nmemb;
+}
+
+int fclose(FILE* stream){
+	int (*orig_fclose)(FILE*) = dlsym(RTLD_NEXT, "fclose");
+	int fd = fileno(stream);
+	file_buf* fb = get_fb_by_fd(fd);
+	//flush and free this
+	return 0; //return EOF if there's an error for some reason
+}
+// ---------------------------------------
+int open(const char *filename, int flags, ...){
+	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
+	return orig_open(filename,flags);
+}
+
+ssize_t read(int fd, void *buf, size_t count){
+	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
+	return orig_read(fd, buf, count);
 }
 
 ssize_t write(int fd, const void *buf, size_t count){
@@ -149,17 +162,20 @@ ssize_t write(int fd, const void *buf, size_t count){
 	 return 0; //what should the ret val be?
 }
 
-size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
-	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
-	printf("asoifghasoigna");
-	int fd = fileno(stream);
+int close(int fd){
+	int (*orig_close)(int) = dlsym(RTLD_NEXT, "close");
 	file_buf* fb = get_fb_by_fd(fd);
-	
-	if(append_write(fb, ptr, size*nmemb) == -1){ // write too big
-	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
-	}
-	return 0;//orig_fwrite(ptr, size, nmemb, stream);
+	//flush and free this
+	return 0; //return EOF if there's an error for some reason
 }
+
+pid_t fork(){
+	pid_t (*orig_fork)() = dlsym(RTLD_NEXT, "fork");
+	return orig_fork();
+}
+
+
+
 
 
 // gets the original filename from the file descriptor
