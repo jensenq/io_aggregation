@@ -14,7 +14,6 @@
 * todo: 
 	* [x] catch a write
 	* [x] intercept anything
-	*     - capture the mode when opening a file (r/w/b/+)
 	* [x] transparently return status
 	* [x] create data structure for file buffer
 	* [ ] put in a data structure
