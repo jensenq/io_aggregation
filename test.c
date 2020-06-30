@@ -1,12 +1,13 @@
 #include <stdio.h>
+#include <string.h>
 
 int main(int argc, char** argv){
 
    FILE *fp;
-   char str[] = "This is tutorialspoint.com";
+   char str[10] = "Thish";
 
    fp = fopen( "file.txt" , "w" );
-   fwrite(str , 1 , sizeof(str) , fp );
+   fwrite(str , strlen(str) , sizeof(char) , fp );
 
    fclose(fp);
   
