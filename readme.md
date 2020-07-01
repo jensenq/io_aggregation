@@ -16,10 +16,10 @@
 	* [x] intercept anything
 	* [x] transparently return status
 	* [x] create data structure for file buffer
-	* [ ] put in a data structure
-	* [ ] flush 1 write
-	* [ ] flush n writes
-	* [ ] catch a close()
+	* [x] record write to memory
+	* [x] flush 1 write to disk
+	* [ ] flush n writes to disk
+	* [ ] handle close()
 	* [ ] logging
 	* [ ] statistics (bytes read, etc)
 	* [ ] create a data structure for the io_aggregation_buf so multiple files can have their 

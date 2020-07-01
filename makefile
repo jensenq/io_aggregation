@@ -11,4 +11,4 @@ run: io_intercept.so test
 	LD_PRELOAD=$(PWD)/io_intercept.so ./test
 
 clean:
-	rm test io_intercept.so
+	rm test io_intercept.so file.txt
