@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <string.h>
 #include <sys/types.h>
+#include <stdbool.h> 
 
 #define MAX_BUF_SIZE 32000000 //total buffer size before flushing
 
@@ -22,12 +23,12 @@ typedef struct file_buf{
 
 /* ===== GLOBAL ===== */
 file_buf* file_bufs = NULL;
-static const char NO_INTERCEPT_FLAG[] = "NOINTRCPT";
+static const char NO_INTERCEPT_FLAG[10] = "NOINTRCPT";
 
-int append_write(file_buf* fb, const void* buf, size_t size);
-file_buf* get_fb_by_fd(int fd);
+int append_write(file_buf*, const void*, size_t);
+file_buf* get_fb_by_fd(int);
 void flush_buf();
-
+bool treat_as_normal(const void*, file_buf*);
 
 
 
@@ -80,17 +81,23 @@ void insert_fb(int fd, const char* filename, const char* mode){
 		new_fb->mode = mode;
 		new_fb->fd = fd;
 		new_fb->curr_size = 0;
-		new_fb->write_buf = (unsigned char*)malloc(sizeof(unsigned char) * (MAX_BUF_SIZE + 2));
+		new_fb->write_buf = (unsigned char*)malloc(
+			sizeof(unsigned char) * (MAX_BUF_SIZE + sizeof(NO_INTERCEPT_FLAG)+1)); 
 		new_fb->next = old_head;
 		file_bufs = new_fb; //global pointer points to new head
 	}
 }
 
 void flush_buf(file_buf* fb){
-	int test = write(fb->fd, fb->write_buf, fb->curr_size);
+
+	//append the flag so write() is treated as normal
+	strcat(&(fb->write_buf[fb->curr_size]), NO_INTERCEPT_FLAG);
+	write(fb->fd, fb->write_buf, fb->curr_size+sizeof(NO_INTERCEPT_FLAG));
+
 	fb->curr_size = 0;
 	//null out the write buf?
 }
+
 
 
 void delete_fb(file_buf* fb){
@@ -116,23 +123,18 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
 
-	//check if this should be treated as a normal fwrite (sloppy i know)
-	char flag[9];
-	memcpy(flag, ptr, 9);
-	if(strcmp(flag, NO_INTERCEPT_FLAG) == 0){	
-		const char* tmp = (const char*)ptr;
-	   return orig_fwrite(&tmp[9], size, nmemb, stream);	  	 
-	}
+	file_buf* fb = get_fb_by_fd(fileno(stream));
 
-	else{
-		int fd = fileno(stream);
-		file_buf* fb = get_fb_by_fd(fd);
-		
-		if(append_write(fb, ptr, size*nmemb) == -1){ // write too big
+	if(treat_as_normal(ptr, fb)){
+		return orig_fwrite(ptr, size, nmemb, stream);
+	}
+	else{	
+		int tmp = append_write(fb, ptr, nmemb);
+		if(tmp == -1){ // write too big for buffer
 		   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 		}
-		return nmemb;
 	}
+	return nmemb;
 }
 
 int fclose(FILE* stream){
@@ -144,8 +146,6 @@ int fclose(FILE* stream){
 	return orig_fclose(stream); 
 }
 
-// -----------------------------------------------------------
-/*
 int open(const char *filename, int flags, ...){
 	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
 	return orig_open(filename,flags);
@@ -155,38 +155,43 @@ ssize_t read(int fd, void *buf, size_t count){
 	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
 	return orig_read(fd, buf, count);
 }
-*/
-ssize_t write(int fd, const void *buf, size_t count){
-	 ssize_t (*orig_write)(int, const void*, size_t) = dlsym(RTLD_NEXT, "write");
 
-	//check if this should be treated as a normal fwrite (sloppy i know)
-	char flag[9];
-	memcpy(flag, buf, 9);
-	if(strcmp(flag, NO_INTERCEPT_FLAG) == 0){	
-		const char* tmp = (const char*)buf;
-	   return orig_write(fd, &tmp[9], count);	  	 
+ssize_t write(int fd, const void *buf, size_t count){
+	ssize_t (*orig_write)(int, const void*, size_t) = dlsym(RTLD_NEXT, "write");
+
+	file_buf* fb = get_fb_by_fd(fd);
+
+	if(treat_as_normal(buf, fb)){
+	   return orig_write(fd, buf, count-sizeof(NO_INTERCEPT_FLAG));
+	}
+	else{
+		int tmp = append_write(fb, buf, count);
+		if(tmp == -1){ // write too big for buffer
+			return orig_write(fd, buf, count);
+		}
 	}
 
-	 file_buf* fb = get_fb_by_fd(fd);
-	 if(append_write(fb, buf, count) == -1){ // write too big
-		  return orig_write(fd, buf, count);
-	 }
-	 return 0; //what should the ret val be?
+	return count;
 }
-/*
+
 int close(int fd){
 	int (*orig_close)(int) = dlsym(RTLD_NEXT, "close");
 	file_buf* fb = get_fb_by_fd(fd);
 	flush_buf(fb);
 	delete_fb(fb);
-	return 0; //return EOF if there's an error for some reason
-}
-*/
-pid_t fork(){
-	pid_t (*orig_fork)() = dlsym(RTLD_NEXT, "fork");
-	return orig_fork();
+	return orig_close(fd); 
 }
 
+bool treat_as_normal(const void* buf, file_buf* fb){
+	const char* tmp = (const char*) buf;
+	int flagsize = sizeof(NO_INTERCEPT_FLAG);
+	char flag[flagsize];
+	memcpy(flag, &tmp[fb->curr_size], flagsize);
+	if(strcmp(flag, NO_INTERCEPT_FLAG) == 0){	
+		return true;
+	}
+	return false;
+}
 
 
 
@@ -217,40 +222,3 @@ void log_access(char* fname, char* type, size_t num_bytes){
 }
 
 
-
-
-
-/* --- i'm not sure if main can be intercepted or not...
-
-// intercept main, allocate memory for the io buffer and return flow to normal main
-int main(){
-	int (*orig_main)() = dlsym(RTLD_NEXT, "main");
-	
-	master = (master_aggregator) {0, NULL};
-	printf("main without args intercepted\n");
-
-	return orig_main();
-}
-int main(int argc, char* argv[]){
-	int (*orig_main)(int argc, char* argv[]) = dlsym(RTLD_NEXT, "main");
-	
-	master = (master_aggregator) {0, NULL};
-	printf("main with args intercepted\n");
-
-	return orig_main(argc, argv);
-}
-*/
-
-/*
-void flush_buf(file_buf* fb){
-	FILE *f = fdopen(fb->fd, fb->mode);
-
-	//insert the flag so fwrite() is treated as normal
-	char write_buf_with_flag[strlen(fb->write_buf) + 9]; //strlen of the buf, or MAX_BUF_SIZE ?
-	strcpy(write_buf_with_flag, NO_INTERCEPT_FLAG);
-	strcat(write_buf_with_flag, fb->write_buf);
-
-	fwrite(write_buf_with_flag, sizeof(unsigned char), sizeof(write_buf_with_flag), f);
-	fb->curr_size = 0;
-}
-*/

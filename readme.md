@@ -1,5 +1,5 @@
 * io_intercept.c 
-	-contains the code to intercept open, read, write, fopen, fread, fwrite
+	- intercepts i/o function calls
 	-
 
 * compile with make
@@ -20,16 +20,14 @@
 	* [x] flush 1 write to disk
 	* [ ] flush n writes to disk
 	* [ ] handle close()
-	* [ ] logging
-	* [ ] statistics (bytes read, etc)
-	* [ ] create a data structure for the io_aggregation_buf so multiple files can have their 
-	*    writes aggregated separately.
+	* [x] delete a file_buffer
+	* [ ] make return values for interceptions MATCH the real versions so its transparent
 	* [ ] catch a read() for a file that's currently being aggregated
 	* [ ] hdf5
 	* [ ] handle multiple processes
 
 	* [ ] misc
-		* [ ] make return values for interceptions MATCH the real versions so its transparent
+		* [ ] logging
+		* [ ] statistics (bytes read, etc)
 		* [x] turn master's array of fb's into a linked list
-		* [ ] delete a file_buffer
 		* [ ] be able to close a file after open() is called on it (so it doesnt stay open the whole time)
