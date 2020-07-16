@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <stdbool.h> 
 
-#define MAX_BUF_SIZE 32000000 //total buffer size before flushing
+#define MAX_BUF_SIZE 40 //total buffer size before flushing
 
 /* ===== STRUCTS ===== */
 
@@ -27,7 +27,7 @@ static const char NO_INTERCEPT_FLAG[10] = "NOINTRCPT";
 
 int append_write(file_buf*, const void*, size_t);
 file_buf* get_fb_by_fd(int);
-void flush_buf();
+void flush_buf(file_buf*);
 bool treat_as_normal(const void*, file_buf*);
 
 
@@ -55,8 +55,9 @@ file_buf* get_fb_by_fd(int fd){
 int append_write(file_buf* fb, const void* buf, size_t size){
 
 	if(size <= MAX_BUF_SIZE){
-		if(fb->curr_size + size > MAX_BUF_SIZE){
-			flush_buf();
+		if(fb->curr_size + size >= MAX_BUF_SIZE){
+			printf("not enough space remaining. data: \"%s\". curr_size: %li. max size: %i\n", (const char*)buf, fb->curr_size, MAX_BUF_SIZE);
+			flush_buf(fb);
 		}
 		
 		unsigned char* tmp1 = &fb->write_buf[fb->curr_size];
@@ -90,14 +91,16 @@ void insert_fb(int fd, const char* filename, const char* mode){
 
 void flush_buf(file_buf* fb){
 
+	printf("flushing: %s\n", (char*)fb->write_buf);
 	//append the flag so write() is treated as normal
 	strcat(&(fb->write_buf[fb->curr_size]), NO_INTERCEPT_FLAG);
 	write(fb->fd, fb->write_buf, fb->curr_size+sizeof(NO_INTERCEPT_FLAG));
 
+	//do we need to zero out the write buf?
+	memset(fb->write_buf, 0, fb->curr_size);
 	fb->curr_size = 0;
-	//null out the write buf?
-}
 
+}
 
 
 void delete_fb(file_buf* fb){
@@ -131,6 +134,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	else{	
 		int tmp = append_write(fb, ptr, nmemb);
 		if(tmp == -1){ // write too big for buffer
+			printf("data too large. data: \"%s\". max size: %i\n", (const char*)ptr, MAX_BUF_SIZE);
 		   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 		}
 	}
@@ -167,6 +171,7 @@ ssize_t write(int fd, const void *buf, size_t count){
 	else{
 		int tmp = append_write(fb, buf, count);
 		if(tmp == -1){ // write too big for buffer
+			printf("data too large. data: \"%s\". max size: %i\n", (const char*)buf, MAX_BUF_SIZE);
 			return orig_write(fd, buf, count);
 		}
 	}
@@ -221,4 +226,19 @@ void log_access(char* fname, char* type, size_t num_bytes){
 	fclose(f);
 }
 
+//debug functions
+int main(){
+	file_buf* fb = (file_buf*) malloc(sizeof(file_buf));
+	fb->filename = "";
+	fb->mode = "";
+	fb->fd = 0;
+	fb->curr_size = 0;
+	fb->write_buf = (unsigned char*)malloc(
+		sizeof(unsigned char) * (MAX_BUF_SIZE + sizeof(NO_INTERCEPT_FLAG)+1)); 
+	fb->next = NULL;
+
+	flush_buf(fb);
+	delete_fb(fb);
+
+}
 

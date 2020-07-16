@@ -18,7 +18,8 @@
 	* [x] create data structure for file buffer
 	* [x] record write to memory
 	* [x] flush 1 write to disk
-	* [ ] flush n writes to disk
+	* [x] flush n writes to disk
+	* [ ] handle a write when max capacity is reached
 	* [ ] handle close()
 	* [x] delete a file_buffer
 	* [ ] make return values for interceptions MATCH the real versions so its transparent
