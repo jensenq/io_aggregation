@@ -92,7 +92,7 @@ void insert_fb(int fd, const char* filename, const char* mode){
 
 void flush_buf(file_buf* fb){
 
-	if(DEBUG_ON){printf("flushing %li bytes\n", fb->curr_size);}
+	if(DEBUG_ON){printf("flushing %li bytes from %s buffer\n", fb->curr_size, fb->filename);}
 	//append the flag so write() is treated as normal
 	strcat(&(fb->write_buf[fb->curr_size]), NO_INTERCEPT_FLAG);
 	write(fb->fd, fb->write_buf, fb->curr_size+sizeof(NO_INTERCEPT_FLAG));
@@ -119,11 +119,6 @@ FILE* fopen(const char *filename, const char *mode){
 	return orig_retval;
 }
 
-size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
-	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
-	return orig_fread(ptr, size, nmemb, stream);
-}
-
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
 
@@ -140,6 +135,14 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 		}
 	}
 	return nmemb;
+}
+
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
+	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
+	int fd = fileno(stream);
+	file_buf* fb = get_fb_by_fd(fd);
+	flush_buf(fb);
+	return orig_fread(ptr, size, nmemb, stream);
 }
 
 int fclose(FILE* stream){

@@ -23,7 +23,7 @@
 	* [x] handle close()
 	* [x] delete a file_buffer
 	* [x] make return values for interceptions MATCH the real versions so its transparent
-	* [ ] catch a read() for a file that's currently being aggregated
+	* [x] catch a read() for a file that's currently being aggregated
 	* [ ] hdf5
 	* [ ] handle multiple processes
 
