@@ -14,4 +14,4 @@ debug: io_intercept.c
 	gcc -g io_intercept.c -o dbg
 
 clean:
-	rm test io_intercept.so file.txt
+	rm test io_intercept.so file.txt file2.txt

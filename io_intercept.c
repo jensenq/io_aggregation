@@ -7,7 +7,7 @@
 #include <sys/types.h>
 #include <stdbool.h> 
 
-#define MAX_BUF_SIZE 60 //total buffer size before flushing
+#define MAX_BUF_SIZE 30 //total buffer size before flushing
 #define DEBUG_ON true
 
 /* ===== STRUCTS ===== */
@@ -55,7 +55,7 @@ file_buf* get_fb_by_fd(int fd){
  * which should be written normally
  */
 int append_write(file_buf* fb, const void* buf, size_t size){
-
+	
 	if(size <= MAX_BUF_SIZE){
 		if(fb->curr_size + size > MAX_BUF_SIZE){
 			if(DEBUG_ON){printf("not enough space remaining. data size: %li. curr_size: %li. max size: %i\n", size, fb->curr_size, MAX_BUF_SIZE);}
@@ -64,6 +64,7 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 		
 		memcpy(&fb->write_buf[fb->curr_size], buf, size);
 		fb->curr_size += size;
+		if(DEBUG_ON){printf("write recorded. file: %s, curr_size: %li\n", fb->filename, fb->curr_size);}
 		return 0;
 	}
 	return -1;
@@ -130,7 +131,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	else{	
 		int tmp = append_write(fb, ptr, nmemb);
 		if(tmp == -1){ // write too big for buffer
-			if(DEBUG_ON){printf("data too large. data: \"%s\". max size: %i\n", (const char*)ptr, MAX_BUF_SIZE);}
+			if(DEBUG_ON){printf("data too large. data size: %li. max size: %i\n", nmemb, MAX_BUF_SIZE);}
 		   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 		}
 	}
@@ -141,6 +142,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
+	if(DEBUG_ON){printf("reading %s\n", fb->filename);}
 	flush_buf(fb);
 	return orig_fread(ptr, size, nmemb, stream);
 }
@@ -149,18 +151,25 @@ int fclose(FILE* stream){
 	int (*orig_fclose)(FILE*) = dlsym(RTLD_NEXT, "fclose");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
+	if(DEBUG_ON){printf("closing %s\n", fb->filename);}
 	flush_buf(fb);
+	if(DEBUG_ON){printf("%s closed.\n", fb->filename);}
 	delete_fb(fb);
 	return orig_fclose(stream); 
 }
 
 int open(const char *filename, int flags, ...){
 	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
-	return orig_open(filename,flags);
+	int orig_retval = orig_open(filename, flags);
+	insert_fb(orig_retval, filename, "");
+	return orig_retval;
 }
 
 ssize_t read(int fd, void *buf, size_t count){
 	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
+	file_buf* fb = get_fb_by_fd(fd);
+	if(DEBUG_ON){printf("reading %s\n", fb->filename);}
+	flush_buf(fb);
 	return orig_read(fd, buf, count);
 }
 
@@ -175,7 +184,7 @@ ssize_t write(int fd, const void *buf, size_t count){
 	else{
 		int tmp = append_write(fb, buf, count);
 		if(tmp == -1){ // write too big for buffer
-			printf("data too large. data: \"%s\". max size: %i\n", (const char*)buf, MAX_BUF_SIZE);
+			if(DEBUG_ON){printf("data too large, writing to disk... data size: %li. max size: %i\n", count, MAX_BUF_SIZE);}
 			return orig_write(fd, buf, count);
 		}
 	}
@@ -191,14 +200,23 @@ int close(int fd){
 	return orig_close(fd); 
 }
 
+
+/* checks if a piece of data contains the flag to not intercept.
+ * if so, returns true, indicating that this call to write() should 
+ * actually be written to disk.
+ */
 bool treat_as_normal(const void* buf, file_buf* fb){
 	const char* tmp = (const char*) buf;
 	int flagsize = sizeof(NO_INTERCEPT_FLAG);
-	char flag[flagsize];
-	memcpy(flag, &tmp[fb->curr_size], flagsize);
-	if(strcmp(flag, NO_INTERCEPT_FLAG) == 0){	
+	char tmp_flag[flagsize];
+
+	memcpy(tmp_flag, &tmp[fb->curr_size], flagsize);
+	tmp_flag[flagsize-1] = '\0';//bandaid
+
+	if(strcmp(tmp_flag, NO_INTERCEPT_FLAG) == 0){	
 		return true;
 	}
+	//if(DEBUG_ON){printf("FLAG FAILED: \"%s\" \"%s\"\n", tmp_flag, NO_INTERCEPT_FLAG);}
 	return false;
 }
 
