@@ -7,7 +7,8 @@
 #include <sys/types.h>
 #include <stdbool.h> 
 
-#define MAX_BUF_SIZE 40 //total buffer size before flushing
+#define MAX_BUF_SIZE 60 //total buffer size before flushing
+#define DEBUG_ON true
 
 /* ===== STRUCTS ===== */
 
@@ -22,7 +23,7 @@ typedef struct file_buf{
 
 
 /* ===== GLOBAL ===== */
-file_buf* file_bufs = NULL;
+file_buf* global_fb_ptr = NULL;
 static const char NO_INTERCEPT_FLAG[10] = "NOINTRCPT";
 
 int append_write(file_buf*, const void*, size_t);
@@ -36,7 +37,7 @@ bool treat_as_normal(const void*, file_buf*);
  */
 file_buf* get_fb_by_fd(int fd){
 	 
-	file_buf* tmp = file_bufs;
+	file_buf* tmp = global_fb_ptr;
 	while(tmp != NULL){
 
 		if(tmp->fd == fd){
@@ -49,19 +50,19 @@ file_buf* get_fb_by_fd(int fd){
 }
 
 /* places the data of a write() into the write buffer
- * returns 0 if successful, -1 if the write is too large 
- * (writes too large should be written normally)
+ * if this new data will overflow the buffer, flush the buffer first.
+ * returns 0 if successful, -1 if the write is too large for the buffer,
+ * which should be written normally
  */
 int append_write(file_buf* fb, const void* buf, size_t size){
 
 	if(size <= MAX_BUF_SIZE){
-		if(fb->curr_size + size >= MAX_BUF_SIZE){
-			printf("not enough space remaining. data: \"%s\". curr_size: %li. max size: %i\n", (const char*)buf, fb->curr_size, MAX_BUF_SIZE);
+		if(fb->curr_size + size > MAX_BUF_SIZE){
+			if(DEBUG_ON){printf("not enough space remaining. data size: %li. curr_size: %li. max size: %i\n", size, fb->curr_size, MAX_BUF_SIZE);}
 			flush_buf(fb);
 		}
 		
-		unsigned char* tmp1 = &fb->write_buf[fb->curr_size];
-		memcpy((void*)&fb->write_buf[fb->curr_size], buf, (size_t)size);
+		memcpy(&fb->write_buf[fb->curr_size], buf, size);
 		fb->curr_size += size;
 		return 0;
 	}
@@ -73,10 +74,10 @@ int append_write(file_buf* fb, const void* buf, size_t size){
  */
 void insert_fb(int fd, const char* filename, const char* mode){
 	if(get_fb_by_fd(fd) != NULL){ //already exists
-		printf("Warning to dev: this file buffer is already in memory");
+		if(DEBUG_ON){printf("this file buffer is already in memory");}
 	}
 	else{
-		file_buf* old_head = file_bufs;
+		file_buf* old_head = global_fb_ptr;
 		file_buf* new_fb = (file_buf*) malloc(sizeof(file_buf));
 		new_fb->filename = filename;
 		new_fb->mode = mode;
@@ -85,13 +86,13 @@ void insert_fb(int fd, const char* filename, const char* mode){
 		new_fb->write_buf = (unsigned char*)malloc(
 			sizeof(unsigned char) * (MAX_BUF_SIZE + sizeof(NO_INTERCEPT_FLAG)+1)); 
 		new_fb->next = old_head;
-		file_bufs = new_fb; //global pointer points to new head
+		global_fb_ptr = new_fb; 
 	}
 }
 
 void flush_buf(file_buf* fb){
 
-	printf("flushing: %s\n", (char*)fb->write_buf);
+	if(DEBUG_ON){printf("flushing %li bytes\n", fb->curr_size);}
 	//append the flag so write() is treated as normal
 	strcat(&(fb->write_buf[fb->curr_size]), NO_INTERCEPT_FLAG);
 	write(fb->fd, fb->write_buf, fb->curr_size+sizeof(NO_INTERCEPT_FLAG));
@@ -134,7 +135,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	else{	
 		int tmp = append_write(fb, ptr, nmemb);
 		if(tmp == -1){ // write too big for buffer
-			printf("data too large. data: \"%s\". max size: %i\n", (const char*)ptr, MAX_BUF_SIZE);
+			if(DEBUG_ON){printf("data too large. data: \"%s\". max size: %i\n", (const char*)ptr, MAX_BUF_SIZE);}
 		   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 		}
 	}
