@@ -19,10 +19,10 @@
 	* [x] record write to memory
 	* [x] flush 1 write to disk
 	* [x] flush n writes to disk
-	* [ ] handle a write when max capacity is reached
-	* [ ] handle close()
+	* [x] handle a write when max capacity is reached
+	* [x] handle close()
 	* [x] delete a file_buffer
-	* [ ] make return values for interceptions MATCH the real versions so its transparent
+	* [x] make return values for interceptions MATCH the real versions so its transparent
 	* [ ] catch a read() for a file that's currently being aggregated
 	* [ ] hdf5
 	* [ ] handle multiple processes
