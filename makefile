@@ -14,4 +14,16 @@ debug: io_intercept.c
 	gcc -g io_intercept.c -o dbg
 
 clean:
-	rm test io_intercept.so file.txt
+	rm test io_intercept.so file.txt file2.txt
+
+
+
+testvolume: io_intercept.so test
+	LD_PRELOAD=$(PWD)/io_intercept.so ./test 1000000 1000
+
+testmedium: io_intercept.so test
+	LD_PRELOAD=$(PWD)/io_intercept.so ./test 100000 10000
+
+testsize: io_intercept.so test
+	LD_PRELOAD=$(PWD)/io_intercept.so ./test 1000 1000000
+

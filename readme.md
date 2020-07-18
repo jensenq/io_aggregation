@@ -24,6 +24,10 @@
 	* [x] delete a file_buffer
 	* [x] make return values for interceptions MATCH the real versions so its transparent
 	* [x] catch a read() for a file that's currently being aggregated
+	* [ ] test for high volume of small data
+	* [ ] test for med volume of med data
+	* [ ] test for low volume of large data
+	* [ ] test for non-string data
 	* [ ] hdf5
 	* [ ] handle multiple processes
 
