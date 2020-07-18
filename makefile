@@ -10,5 +10,8 @@ test: test.c
 run: io_intercept.so test
 	LD_PRELOAD=$(PWD)/io_intercept.so ./test
 
+debug: io_intercept.c
+	gcc -g io_intercept.c -o dbg
+
 clean:
-	rm test io_intercept.so
+	rm test io_intercept.so file.txt

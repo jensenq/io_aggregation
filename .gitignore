@@ -3,5 +3,7 @@
 *.o
 test
 foo.txt
+file.txt
 compile_run.sh
 sigh
+
