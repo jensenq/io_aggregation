@@ -1,36 +1,57 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
+#include <time.h>
+
+
+/* William Morris
+	https://codereview.stackexchange.com/questions/29198/random-string-generator-in-c 
+*/
+static char *rand_string(char *str, size_t size)
+{
+    const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    if (size) {
+        --size;
+        for (size_t n = 0; n < size; n++) {
+            int key = rand() % (int) (sizeof charset - 1);
+            str[n] = charset[key];
+        }
+        str[size] = '\0';
+    }
+    return str;
+}
+char* rand_string_alloc(size_t size)
+{
+     char *s = malloc(size + 1);
+     if (s) {
+         rand_string(s, size);
+     }
+     return s;
+}
 
 int main(int argc, char** argv){
 
-   char str[10] = "1 ";
-   char str2[10] = "2 ";
-   char str3[10] = "3 ";
-   char str4[10] = "4 ";
-   char str5[10] = "5 ";
-
-	char readbuf[10];
-
    FILE* fp = fopen( "file.txt" , "w" );
-   FILE* fp2 = fopen( "file2.txt" , "w" );
+   //FILE* fp2 = fopen( "file2.txt" , "w" );
 
-   fwrite(str , sizeof(char) , sizeof(str) , fp );
-   fwrite(str2 , sizeof(char) , sizeof(str2) , fp );
-	fwrite(str , sizeof(char) , sizeof(str) ,   fp2 );
-   fwrite(str3 , sizeof(char) , sizeof(str3) , fp );
-   fwrite(str2 , sizeof(char) , sizeof(str2) , fp2 );
-   fwrite(str3 , sizeof(char) , sizeof(str3) , fp2 );
-   fwrite(str4 , sizeof(char) , sizeof(str4) , fp );
-	fread(readbuf, sizeof(char), sizeof(readbuf), fp2);
-   fwrite(str4 , sizeof(char) , sizeof(str4) , fp2 );
-	fread(readbuf, sizeof(char), sizeof(readbuf), fp);
-   fwrite(str5 , sizeof(char) , sizeof(str4) , fp );
+	int NUM_ITERS = 10000;
+	int MAX_SIZE = 100000;
+	if(argc >= 2){
+		int NUM_ITERS = atoi(argv[1]);
+		int MAX_SIZE = atoi(argv[2]);
+	}
+	char* rs = rand_string_alloc(MAX_SIZE);
+
+	for(int i=0; i<NUM_ITERS; i++){	
+		size_t size = rand() % MAX_SIZE;
+		rand_string(rs, size);
+   	fwrite(rs, sizeof(char), size, fp );
+		//fwrite(rs, sizeof(char), size, fp2 );
+	}	
+	free(rs);
+
 	fclose(fp);
-   fwrite(str5 , sizeof(char) , sizeof(str4) , fp2 );
-
-
-
-   fclose(fp2);
+   //fclose(fp2);
   
    return(0);
 }

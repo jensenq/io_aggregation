@@ -7,8 +7,8 @@
 #include <sys/types.h>
 #include <stdbool.h> 
 
-#define MAX_BUF_SIZE 30 //total buffer size before flushing
-#define DEBUG_ON true
+#define MAX_BUF_SIZE 32000000 //total buffer size before flushing
+#define DEBUG_ON false
 
 /* ===== STRUCTS ===== */
 
@@ -29,7 +29,7 @@ static const char NO_INTERCEPT_FLAG[10] = "NOINTRCPT";
 int append_write(file_buf*, const void*, size_t);
 file_buf* get_fb_by_fd(int);
 void flush_buf(file_buf*);
-bool treat_as_normal(const void*, file_buf*);
+bool treat_as_normal(const void*, size_t, file_buf*);
 
 
 
@@ -125,7 +125,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 
 	file_buf* fb = get_fb_by_fd(fileno(stream));
 
-	if(treat_as_normal(ptr, fb)){
+	if(treat_as_normal(ptr, size*nmemb, fb)){
 		return orig_fwrite(ptr, size, nmemb, stream);
 	}
 	else{	
@@ -178,7 +178,7 @@ ssize_t write(int fd, const void *buf, size_t count){
 
 	file_buf* fb = get_fb_by_fd(fd);
 
-	if(treat_as_normal(buf, fb)){
+	if(treat_as_normal(buf, count, fb)){
 	   return orig_write(fd, buf, count-sizeof(NO_INTERCEPT_FLAG));
 	}
 	else{
@@ -205,12 +205,15 @@ int close(int fd){
  * if so, returns true, indicating that this call to write() should 
  * actually be written to disk.
  */
-bool treat_as_normal(const void* buf, file_buf* fb){
-	const char* tmp = (const char*) buf;
+bool treat_as_normal(const void* void_buf, size_t bufsize, file_buf* fb){
+
+	//casting to char* just to extract the flag. should not affect non-string data.
+	const char* buf = (const char*) void_buf; 
 	int flagsize = sizeof(NO_INTERCEPT_FLAG);
 	char tmp_flag[flagsize];
 
-	memcpy(tmp_flag, &tmp[fb->curr_size], flagsize);
+	//copy last flagsize bytes from tmp to tmp_flag
+	memcpy(tmp_flag, &buf[bufsize-flagsize], flagsize);
 	tmp_flag[flagsize-1] = '\0';//bandaid
 
 	if(strcmp(tmp_flag, NO_INTERCEPT_FLAG) == 0){	
