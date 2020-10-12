@@ -1,16 +1,34 @@
 #!/bin/bash
 
-num_data_pts=10
-numwrites=2
-size=1000 #1000 is about the median size of pipeline writes
+fname="time_vs_writesize.log"
+num_data_pts=15
+numwrites=10000
+writesize=1000 
+numfiles=1
 
-#numwrites - caps at ~1M writes
-echo -e "real\ttime    \tnumwrites\tsize" >> time_vs_numwrites.log
+#numwrites
+#echo -e "real\ttime    \tnumwrites\tsize" >> time_vs_numwrites.log
+#for (( i=0; i<num_data_pts; i++)); do
+#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $size; }  2>&1 | grep real)
+#	echo -e "$time\t$numwrites\t$size" >> time_vs_numwrites.log
+#	numwrites=$(( numwrites * 2 ))
+#done
+
+#writesize
+#echo -e "real\ttime    \tnumwrites\tsize" >> $fname
+#for (( i=0; i<num_data_pts; i++)); do
+#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $writesize; }  2>&1 | grep real)
+#	echo -e "$time\t$numwrites\t$writesize" >> $fname
+#	writesize=$(( writesize * 2 ))
+#done
+
+echo -e "real\ttime    \tnumwrites\tsize\tnumfiles" >> $fname
 for (( i=0; i<num_data_pts; i++)); do
-	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $size; }  2>&1 | grep real)
-	echo -e "$time\t$numwrites\t$size" >> time_vs_numwrites.log
-	numwrites=$(( numwrites * 2 ))
+	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $writesize $numfiles; }  2>&1 | grep real)
+	echo -e "$time\t$numwrites\t$writesize\t$numfiles" >> $fname
+	numfiles=$(( numfiles * 2 ))
 done
+
 
 
 

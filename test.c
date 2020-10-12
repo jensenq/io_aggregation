@@ -1,8 +1,9 @@
-#include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
 #include <time.h>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+ 
 
 /* William Morris
 	https://codereview.stackexchange.com/questions/29198/random-string-generator-in-c 
@@ -31,27 +32,30 @@ char* rand_string_alloc(size_t size)
 
 int main(int argc, char** argv){
 
-   FILE* fp = fopen( "file.txt" , "w" );
-   //FILE* fp2 = fopen( "file2.txt" , "w" );
-
 	int NUM_ITERS = 10000;
 	int MAX_SIZE = 100000;
+	int NUM_FILES = 1;
 	if(argc >= 2){
 		NUM_ITERS = atoi(argv[1]);
 		MAX_SIZE = atoi(argv[2]);
+		NUM_FILES = atoi(argv[3]);
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
+	char fname[32];
 
-	for(int i=0; i<NUM_ITERS; i++){	
-		size_t size = rand() % MAX_SIZE;
-		rand_string(rs, size);
-   	fwrite(rs, sizeof(char), size, fp );
-		//fwrite(rs, sizeof(char), size, fp2 );
-	}	
+	for(int j=0; j<NUM_FILES; j++){
+		rand_string(fname,5);
+		strcat(fname, ".txt");
+   	FILE* fp = fopen( fname , "w" );
+
+		for(int i=0; i<NUM_ITERS; i++){	
+			size_t size = rand() % MAX_SIZE;
+			rand_string(rs, size);
+	   	fwrite(rs, sizeof(char), size, fp );
+		}	
+		fclose(fp);
+	}
 	free(rs);
-
-	fclose(fp);
-   //fclose(fp2);
   
    return(0);
 }
