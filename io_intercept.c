@@ -25,12 +25,10 @@ typedef struct file_buf{
 
 /* ===== GLOBAL ===== */
 file_buf* global_fb_ptr = NULL;
-static const char NO_INTERCEPT_FLAG[10] = "NOINTRCPT";
 
 int append_write(file_buf*, const void*, size_t);
 file_buf* get_fb_by_fd(int);
 void flush_buf(file_buf*);
-bool treat_as_normal(const void*, size_t, file_buf*);
 
 
 
@@ -87,7 +85,7 @@ void insert_fb(int fd, const char* filename, const char* mode){
 		new_fb->fd = fd;
 		new_fb->curr_size = 0;
 		new_fb->write_buf = (unsigned char*)malloc(
-			sizeof(unsigned char) * (MAX_BUF_SIZE + sizeof(NO_INTERCEPT_FLAG)+1)); 
+			sizeof(unsigned char) * (MAX_BUF_SIZE+1)); 
 		new_fb->next = old_head;
 		global_fb_ptr = new_fb; 
 	}
@@ -101,9 +99,7 @@ void flush_buf(file_buf* fb){
 	debug_bytes_written = fb->curr_size;
 	if(DEBUG_LVL>=3){printf("flushing %li bytes from %s buffer\n", fb->curr_size, fb->filename);}
 
-	//append the flag so write() is treated as normal
-	strcat(&(fb->write_buf[fb->curr_size]), NO_INTERCEPT_FLAG);
-	write(fb->fd, fb->write_buf, fb->curr_size+sizeof(NO_INTERCEPT_FLAG));
+	write(-1*fb->fd, fb->write_buf, fb->curr_size);
 	memset(fb->write_buf, 0, fb->curr_size);
 	fb->curr_size = 0;
 
@@ -137,16 +133,11 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
 
 	file_buf* fb = get_fb_by_fd(fileno(stream));
-
-	if(treat_as_normal(ptr, size*nmemb, fb)){
-		return orig_fwrite(ptr, size, nmemb, stream);
-	}
-	else{	
-		int tmp = append_write(fb, ptr, nmemb);
-		if(tmp == -1){ // write too big for buffer
-			if(DEBUG_LVL>=3){printf("data too large. data size: %li. max size: %i\n", nmemb, MAX_BUF_SIZE);}
-		   return orig_fwrite(ptr, size, nmemb, stream);	  	 
-		}
+	
+	int too_big_flag = append_write(fb, ptr, nmemb);
+	if(too_big_flag == -1){ // write too big for buffer
+		if(DEBUG_LVL>=3){printf("data too large. data size: %li. max size: %i\n", nmemb, MAX_BUF_SIZE);}
+	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 	}
 	return nmemb;
 }
@@ -191,12 +182,13 @@ ssize_t write(int fd, const void *buf, size_t count){
 
 	file_buf* fb = get_fb_by_fd(fd);
 
-	if(treat_as_normal(buf, count, fb)){
-	   return orig_write(fd, buf, count-sizeof(NO_INTERCEPT_FLAG));
+	//negative fd signals this is a normal write.
+	if(fd<0){
+	   return orig_write(-fd, buf, count);
 	}
 	else{
-		int tmp = append_write(fb, buf, count);
-		if(tmp == -1){ // write too big for buffer
+		int too_big_flag = append_write(fb, buf, count);
+		if(too_big_flag == -1){ // write too big for buffer
 			if(DEBUG_LVL>=3){printf("data too large, writing to disk... data size: %li. max size: %i\n", count, MAX_BUF_SIZE);}
 			return orig_write(fd, buf, count);
 		}
@@ -211,29 +203,6 @@ int close(int fd){
 	flush_buf(fb);
 	delete_fb(fb);
 	return orig_close(fd); 
-}
-
-
-/* checks if a piece of data contains the flag to not intercept.
- * if so, returns true, indicating that this call to write() should 
- * actually be written to disk.
- */
-bool treat_as_normal(const void* void_buf, size_t bufsize, file_buf* fb){
-
-	//casting to char* just to extract the flag. should not affect non-string data.
-	const char* buf = (const char*) void_buf; 
-	int flagsize = sizeof(NO_INTERCEPT_FLAG);
-	char tmp_flag[flagsize];
-
-	//copy last flagsize bytes from tmp to tmp_flag
-	memcpy(tmp_flag, &buf[bufsize-flagsize], flagsize);
-	tmp_flag[flagsize-1] = '\0';//bandaid
-
-	if(strcmp(tmp_flag, NO_INTERCEPT_FLAG) == 0){	
-		return true;
-	}
-	//if(DEBUG_LVL){printf("FLAG FAILED: \"%s\" \"%s\"\n", tmp_flag, NO_INTERCEPT_FLAG);}
-	return false;
 }
 
 
@@ -254,15 +223,6 @@ char* recover_filename(int fd){
 
 }
 
-void log_access(char* fname, char* type, size_t num_bytes){
-	if(strcmp(fname,"file_access_log.txt") == 0) return; //prevent infinite loop
-	FILE *f = fopen("file_access_log.txt", "ab+");
-	if (f == NULL){
-		printf("Couldn't log %s to file_access_log.txt\n", fname);
-	}
-	fprintf(f, "filename: %s, type: %s, bytes: %zu\n", fname, type, num_bytes);
-	fclose(f);
-}
 
 //debug functions
 int main(){
@@ -272,7 +232,7 @@ int main(){
 	fb->fd = 0;
 	fb->curr_size = 0;
 	fb->write_buf = (unsigned char*)malloc(
-		sizeof(unsigned char) * (MAX_BUF_SIZE + sizeof(NO_INTERCEPT_FLAG)+1)); 
+		sizeof(unsigned char) * (MAX_BUF_SIZE+1)); 
 	fb->next = NULL;
 
 	flush_buf(fb);
