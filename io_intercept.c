@@ -9,7 +9,7 @@
 #include <sys/time.h>
 
 #define MAX_BUF_SIZE 32000000 //total buffer size before flushing
-#define DEBUG_LVL 1
+#define DEBUG_LVL 0
 
 /* ===== STRUCTS ===== */
 
@@ -55,6 +55,12 @@ file_buf* get_fb_by_fd(int fd){
  */
 int append_write(file_buf* fb, const void* buf, size_t size){
 	
+	// wall-clock timing {
+		struct timeval begin, end;
+		gettimeofday(&begin, 0);
+	// }
+
+	int retval = -1;
 	if(size <= MAX_BUF_SIZE){
 		if(fb->curr_size + size > MAX_BUF_SIZE){
 			if(DEBUG_LVL>=2){printf("not enough space remaining. data size: %li. curr_size: %li. max size: %i\n", size, fb->curr_size, MAX_BUF_SIZE);}
@@ -65,15 +71,32 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 		fb->curr_size += size;
 
 		if(DEBUG_LVL>=3){printf("write recorded. file: %s, curr_size: %li\n", fb->filename, fb->curr_size);}
-		return 0;
+		retval = 0;
 	}
-	return -1;
+
+	// wall-clock timing {
+		if(DEBUG_LVL>=1){
+			gettimeofday(&end, NULL);
+			long seconds = end.tv_sec - begin.tv_sec;
+			long microseconds = end.tv_usec - begin.tv_usec;
+			double elapsed = seconds + microseconds*1e-6;
+			printf("APPEND %.6f\n", elapsed); 
+		}
+	// }
+
+	return retval;
 }
 
 /* creates a new file buffer, and adds it to the global list of file buffers
  *  note: inserted at the head of the list (files recently opened are more likely to be used soon) 
  */
 void insert_fb(int fd, const char* filename, const char* mode){
+
+	// wall-clock timing {
+		struct timeval begin, end;
+		gettimeofday(&begin, 0);
+	// }
+
 	if(get_fb_by_fd(fd) != NULL){ //already exists
 		if(DEBUG_LVL>=1){printf("Error: this file buffer is already in memory");}
 	}
@@ -89,28 +112,41 @@ void insert_fb(int fd, const char* filename, const char* mode){
 		new_fb->next = old_head;
 		global_fb_ptr = new_fb; 
 	}
+	// wall-clock timing {
+		if(DEBUG_LVL>=1){
+			gettimeofday(&end, NULL);
+			long seconds = end.tv_sec - begin.tv_sec;
+			long microseconds = end.tv_usec - begin.tv_usec;
+			double elapsed = seconds + microseconds*1e-6;
+			printf("INSERT %.6f\n", elapsed); 
+		}
+	// }
 }
 
 void flush_buf(file_buf* fb){
 
-	struct timeval begin, end;
-	size_t debug_bytes_written;
-	gettimeofday(&begin, 0);
-	debug_bytes_written = fb->curr_size;
 	if(DEBUG_LVL>=3){printf("flushing %li bytes from %s buffer\n", fb->curr_size, fb->filename);}
+	// wall-clock timing {
+		struct timeval begin, end;
+		gettimeofday(&begin, 0);
+	// }
 
+	//negative fd signals this is a normal write.
 	write(-1*fb->fd, fb->write_buf, fb->curr_size);
 	memset(fb->write_buf, 0, fb->curr_size);
 	fb->curr_size = 0;
 
-	if(DEBUG_LVL>=1){
-		gettimeofday(&end, NULL);
-		long seconds = end.tv_sec - begin.tv_sec;
-		long microseconds = end.tv_usec - begin.tv_usec;
-		double elapsed = seconds + microseconds*1e-6;
-		double mbytes_per_sec = (debug_bytes_written/elapsed)/1000000;
-		printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", debug_bytes_written, elapsed, mbytes_per_sec);
-	}
+	// wall-clock timing {
+		if(DEBUG_LVL>=1){
+			gettimeofday(&end, NULL);
+			long seconds = end.tv_sec - begin.tv_sec;
+			long microseconds = end.tv_usec - begin.tv_usec;
+			double elapsed = seconds + microseconds*1e-6;
+			double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
+			//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
+			printf("FLUSH %.6f\n", elapsed); //easy parsing
+		}
+	// }
 }
 
 
@@ -130,6 +166,12 @@ FILE* fopen(const char *filename, const char *mode){
 }
 
 size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
+
+	// wall-clock timing {
+		struct timeval begin, end;
+		gettimeofday(&begin, 0);
+	// }
+
 	size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fwrite");
 
 	file_buf* fb = get_fb_by_fd(fileno(stream));
@@ -139,6 +181,17 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 		if(DEBUG_LVL>=3){printf("data too large. data size: %li. max size: %i\n", nmemb, MAX_BUF_SIZE);}
 	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 	}
+	// wall-clock timing {
+		if(DEBUG_LVL>=1){
+			gettimeofday(&end, NULL);
+			long seconds = end.tv_sec - begin.tv_sec;
+			long microseconds = end.tv_usec - begin.tv_usec;
+			double elapsed = seconds + microseconds*1e-6;
+			//double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
+			//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
+			printf("INTERCEPT %.6f\n", elapsed); //easy parsing
+		}
+	// }
 	return nmemb;
 }
 

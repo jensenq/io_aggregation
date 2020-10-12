@@ -37,8 +37,8 @@ int main(int argc, char** argv){
 	int NUM_ITERS = 10000;
 	int MAX_SIZE = 100000;
 	if(argc >= 2){
-		int NUM_ITERS = atoi(argv[1]);
-		int MAX_SIZE = atoi(argv[2]);
+		NUM_ITERS = atoi(argv[1]);
+		MAX_SIZE = atoi(argv[2]);
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
 
