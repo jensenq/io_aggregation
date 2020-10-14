@@ -8,6 +8,7 @@ test: test.c
 	gcc -g test.c -o test
 
 run: io_intercept.so test
+	export AGG_BUFSIZE=32000000
 	LD_PRELOAD=$(PWD)/io_intercept.so ./test
 
 debug: io_intercept.c
@@ -17,13 +18,4 @@ clean:
 	rm test io_intercept.so file.txt file2.txt
 
 
-
-testvolume: io_intercept.so test
-	LD_PRELOAD=$(PWD)/io_intercept.so ./test 1000000 1000
-
-testmedium: io_intercept.so test
-	LD_PRELOAD=$(PWD)/io_intercept.so ./test 100000 10000
-
-testsize: io_intercept.so test
-	LD_PRELOAD=$(PWD)/io_intercept.so ./test 1000 1000000
 

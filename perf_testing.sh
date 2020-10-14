@@ -7,7 +7,7 @@ writesize=1000
 numfiles=1
 bufsize=8000
 
-#numwrites
+# === numwrites ===
 #echo -e "real\ttime    \tnumwrites\tsize" >> time_vs_numwrites.log
 #for (( i=0; i<num_data_pts; i++)); do
 #	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $size; }  2>&1 | grep real)
@@ -15,7 +15,8 @@ bufsize=8000
 #	numwrites=$(( numwrites * 2 ))
 #done
 
-#writesize
+
+# === writesize ===
 #echo -e "real\ttime    \tnumwrites\tsize" >> $fname
 #for (( i=0; i<num_data_pts; i++)); do
 #	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $writesize; }  2>&1 | grep real)
@@ -23,7 +24,7 @@ bufsize=8000
 #	writesize=$(( writesize * 2 ))
 #done
 
-#bufsize
+# === bufsize ===
 #echo -e "real\ttime    \tnumwrites\twritesize\tbufsize" >> $fname
 for (( i=0; i<num_data_pts; i++)); do
 	export AGG_BUFSIZE=$bufsize
@@ -33,7 +34,7 @@ for (( i=0; i<num_data_pts; i++)); do
 done
 
 
-#numfiles
+# === numfiles ===
 #echo -e "real\ttime    \tnumwrites\tsize\tnumfiles" >> $fname
 #for (( i=0; i<num_data_pts; i++)); do
 #	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $writesize $numfiles; }  2>&1 | grep real)
@@ -44,7 +45,6 @@ done
 
 
 
-#{ time LD_PRELOAD=./io_intercept.so ./test 1 1; } 2>&1 | grep real >> time_vs_numwrites.log
 	 
 	
 
