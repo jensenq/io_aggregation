@@ -1,10 +1,11 @@
 #!/bin/bash
 
-fname="time_vs_writesize.log"
-num_data_pts=15
-numwrites=10000
-writesize=1000 
+fname=/home/jensenq/research/time_vs_bufsize.log
+num_data_pts=25
+numwrites=1000000
+writesize=1000
 numfiles=1
+bufsize=8000
 
 #numwrites
 #echo -e "real\ttime    \tnumwrites\tsize" >> time_vs_numwrites.log
@@ -22,12 +23,23 @@ numfiles=1
 #	writesize=$(( writesize * 2 ))
 #done
 
-echo -e "real\ttime    \tnumwrites\tsize\tnumfiles" >> $fname
+#bufsize
+#echo -e "real\ttime    \tnumwrites\twritesize\tbufsize" >> $fname
 for (( i=0; i<num_data_pts; i++)); do
+	export AGG_BUFSIZE=$bufsize
 	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $writesize $numfiles; }  2>&1 | grep real)
-	echo -e "$time\t$numwrites\t$writesize\t$numfiles" >> $fname
-	numfiles=$(( numfiles * 2 ))
+	echo -e "$time\t$numwrites\t$writesize\t$bufsize" >> $fname
+	bufsize=$(( bufsize * 2 ))
 done
+
+
+#numfiles
+#echo -e "real\ttime    \tnumwrites\tsize\tnumfiles" >> $fname
+#for (( i=0; i<num_data_pts; i++)); do
+#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $numwrites $writesize $numfiles; }  2>&1 | grep real)
+#	echo -e "$time\t$numwrites\t$writesize\t$numfiles" >> $fname
+#	numfiles=$(( numfiles * 2 ))
+#done
 
 
 

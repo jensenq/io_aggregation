@@ -8,8 +8,8 @@
 #include <stdbool.h> 
 #include <sys/time.h>
 
-#define MAX_BUF_SIZE 32000000 //total buffer size before flushing
 #define DEBUG_LVL 0
+#define BUF_SIZE_ENV_VAR "AGG_BUFSIZE"
 
 /* ===== STRUCTS ===== */
 
@@ -25,6 +25,7 @@ typedef struct file_buf{
 
 /* ===== GLOBAL ===== */
 file_buf* global_fb_ptr = NULL;
+int GLOBAL_BUF_SIZE = 32000000; //default 32MB
 
 int append_write(file_buf*, const void*, size_t);
 file_buf* get_fb_by_fd(int);
@@ -61,9 +62,9 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 	// }
 
 	int retval = -1;
-	if(size <= MAX_BUF_SIZE){
-		if(fb->curr_size + size > MAX_BUF_SIZE){
-			if(DEBUG_LVL>=2){printf("not enough space remaining. data size: %li. curr_size: %li. max size: %i\n", size, fb->curr_size, MAX_BUF_SIZE);}
+	if(size <= GLOBAL_BUF_SIZE){
+		if(fb->curr_size + size > GLOBAL_BUF_SIZE){
+			if(DEBUG_LVL>=2){printf("not enough space remaining. data size: %li. curr_size: %li. max size: %i\n", size, fb->curr_size, GLOBAL_BUF_SIZE);}
 			flush_buf(fb);
 		}
 		
@@ -97,6 +98,13 @@ void insert_fb(int fd, const char* filename, const char* mode){
 		gettimeofday(&begin, 0);
 	// }
 
+	//earliest possible spot to grab the env variable
+	GLOBAL_BUF_SIZE = 32000000;
+	char* tmp = getenv(BUF_SIZE_ENV_VAR);
+	if(tmp!=NULL){
+		GLOBAL_BUF_SIZE = atoi(tmp);
+	}
+
 	if(get_fb_by_fd(fd) != NULL){ //already exists
 		if(DEBUG_LVL>=1){printf("Error: this file buffer is already in memory");}
 	}
@@ -108,7 +116,7 @@ void insert_fb(int fd, const char* filename, const char* mode){
 		new_fb->fd = fd;
 		new_fb->curr_size = 0;
 		new_fb->write_buf = (unsigned char*)malloc(
-			sizeof(unsigned char) * (MAX_BUF_SIZE+1)); 
+			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
 		new_fb->next = old_head;
 		global_fb_ptr = new_fb; 
 	}
@@ -178,7 +186,7 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	
 	int too_big_flag = append_write(fb, ptr, nmemb);
 	if(too_big_flag == -1){ // write too big for buffer
-		if(DEBUG_LVL>=3){printf("data too large. data size: %li. max size: %i\n", nmemb, MAX_BUF_SIZE);}
+		if(DEBUG_LVL>=3){printf("data too large. data size: %li. max size: %i\n", nmemb, GLOBAL_BUF_SIZE);}
 	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 	}
 	// wall-clock timing {
@@ -242,7 +250,7 @@ ssize_t write(int fd, const void *buf, size_t count){
 	else{
 		int too_big_flag = append_write(fb, buf, count);
 		if(too_big_flag == -1){ // write too big for buffer
-			if(DEBUG_LVL>=3){printf("data too large, writing to disk... data size: %li. max size: %i\n", count, MAX_BUF_SIZE);}
+			if(DEBUG_LVL>=3){printf("data too large, writing to disk... data size: %li. max size: %i\n", count, GLOBAL_BUF_SIZE);}
 			return orig_write(fd, buf, count);
 		}
 	}
@@ -285,7 +293,7 @@ int main(){
 	fb->fd = 0;
 	fb->curr_size = 0;
 	fb->write_buf = (unsigned char*)malloc(
-		sizeof(unsigned char) * (MAX_BUF_SIZE+1)); 
+		sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
 	fb->next = NULL;
 
 	flush_buf(fb);
