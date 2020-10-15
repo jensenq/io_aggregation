@@ -8,7 +8,7 @@
 #include <stdbool.h> 
 #include <sys/time.h>
 
-#define DEBUG_LVL 0
+#define DEBUG_LVL 1 //0: none. 1: write function timers to file. 2:error printing. 3:all printing
 #define BUF_SIZE_ENV_VAR "AGG_BUFSIZE"
 
 /* ===== STRUCTS ===== */
@@ -81,7 +81,10 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 			long seconds = end.tv_sec - begin.tv_sec;
 			long microseconds = end.tv_usec - begin.tv_usec;
 			double elapsed = seconds + microseconds*1e-6;
-			printf("APPEND %.6f\n", elapsed); 
+			//printf("APPEND %.6f\n", elapsed); 
+			FILE* f = fopen("perf_analysis/func_times.log", "!a");
+			fprintf(f, "append_write, %.6f\n", elapsed);
+			fclose(f);
 		}
 	// }
 
@@ -106,7 +109,7 @@ void insert_fb(int fd, const char* filename, const char* mode){
 	}
 
 	if(get_fb_by_fd(fd) != NULL){ //already exists
-		if(DEBUG_LVL>=1){printf("Error: this file buffer is already in memory");}
+		if(DEBUG_LVL>=2){printf("Error: this file buffer is already in memory");}
 	}
 	else{
 		file_buf* old_head = global_fb_ptr;
@@ -126,7 +129,10 @@ void insert_fb(int fd, const char* filename, const char* mode){
 			long seconds = end.tv_sec - begin.tv_sec;
 			long microseconds = end.tv_usec - begin.tv_usec;
 			double elapsed = seconds + microseconds*1e-6;
-			printf("INSERT %.6f\n", elapsed); 
+			//printf("INSERT %.6f\n", elapsed); 
+			FILE* f = fopen("perf_analysis/func_times.log", "!a");
+			fprintf(f, "insert_fb, %.6f\n", elapsed);
+			fclose(f);
 		}
 	// }
 }
@@ -152,7 +158,10 @@ void flush_buf(file_buf* fb){
 			double elapsed = seconds + microseconds*1e-6;
 			double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
 			//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
-			printf("FLUSH %.6f\n", elapsed); //easy parsing
+			FILE* f = fopen("perf_analysis/func_times.log", "!a");
+			fprintf(f, "flush_buf, %.6f\n", elapsed);
+			fclose(f);
+
 		}
 	// }
 }
@@ -168,6 +177,13 @@ void delete_fb(file_buf* fb){
 
 FILE* fopen(const char *filename, const char *mode){
 	FILE* (*orig_fopen)(const char*, const char*) = dlsym(RTLD_NEXT, "fopen");
+
+	//check if this is a debug file for this library
+	if(mode[0] == '!'){
+		FILE* orig_retval = orig_fopen(filename, &mode[1]);
+		return orig_retval;
+	}
+	
 	FILE* orig_retval = orig_fopen(filename, mode);
 	insert_fb(fileno(orig_retval), filename, mode);
 	return orig_retval;
@@ -197,7 +213,9 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 			double elapsed = seconds + microseconds*1e-6;
 			//double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
 			//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
-			printf("INTERCEPT %.6f\n", elapsed); //easy parsing
+			FILE* f = fopen("perf_analysis/func_times.log", "!a");
+			fprintf(f, "fwrite, %.6f\n", elapsed);
+			fclose(f);
 		}
 	// }
 	return nmemb;
@@ -216,11 +234,13 @@ int fclose(FILE* stream){
 	int (*orig_fclose)(FILE*) = dlsym(RTLD_NEXT, "fclose");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
-	if(DEBUG_LVL>=3){printf("closing %s\n", fb->filename);}
-	flush_buf(fb);
-	if(DEBUG_LVL>=3){printf("%s closed.\n", fb->filename);}
-	delete_fb(fb);
-	return orig_fclose(stream); 
+	if(fb){
+		if(DEBUG_LVL>=3){printf("closing %s\n", fb->filename);}
+		flush_buf(fb);
+		if(DEBUG_LVL>=3){printf("%s closed.\n", fb->filename);}
+		delete_fb(fb);
+	}
+		return orig_fclose(stream); 
 }
 
 int open(const char *filename, int flags, ...){

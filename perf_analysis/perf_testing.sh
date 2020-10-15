@@ -13,6 +13,7 @@ numfiles=1
 bufsize=8000
 
 # ======== numwrites x interception x optimization =================================================
+cd ..
 datapath=/home/jensenq/research/perf_data/writes_opt_test/
 
 # [x] interception 

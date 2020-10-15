@@ -41,10 +41,10 @@ int main(int argc, char** argv){
 		NUM_FILES = atoi(argv[3]);
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
-	char fname[32];
+	char fname[64] = "./perf_analysis/junk/";
 
 	for(int j=0; j<NUM_FILES; j++){
-		rand_string(fname,5);
+		strcat(fname, rand_string(&fname[strlen(fname)],5));
 		strcat(fname, ".txt");
    	FILE* fp = fopen( fname , "w" );
 
