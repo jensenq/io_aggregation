@@ -5,7 +5,7 @@ def main():
 
 	pd.set_option('display.float_format', lambda x: '%.6f' % x)
 
-	df = pd.read_csv("func_times.log")
+	df = pd.read_csv("function_timers.log")
 	df["time"] = df["time"].astype(float)
 
 	insert_avg = df.loc[df["func_name"] == "insert_fb"]["time"].mean()
