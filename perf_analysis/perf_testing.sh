@@ -12,68 +12,104 @@ num_data_pts=25
 numfiles=1
 bufsize=8000
 
-# ======== numwrites x interception x optimization =================================================
+disk_cache=8192000
+datapath=~/research/io_aggregation/perf_analysis/data/disk_cache_test/
+
+
 cd ..
-datapath=/home/jensenq/research/perf_data/writes_opt_test/
 
-# [x] interception 
-# [x] optimization
-fname="numwrites_w_int_w_opt.csv"
-gcc -O3 -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
-gcc -03 test.c -o test
+fname="over_cache.csv"
+touch "${datapath}${fname}"
+gcc -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
+gcc test.c -o test
 echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-
+size=$(($disk_cache+1))
 # lower to upper bound at evenly distrubuted intervals
-for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
-	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i $writesize_avg; }  2>&1 | grep real)
-	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
+for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
+	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
+	echo -e "$time,$i,$size" >> "${datapath}${fname}"
 done
 rm -rf ./junk/*
 
-#---------------------------------
-# [ ] interception 
-# [x] optimization
-fname="numwrites_no_int_w_opt.csv"
-gcc -03 test.c -o test
+fname="under_cache.csv"
+touch "${datapath}${fname}"
+gcc -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
+gcc test.c -o test
 echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
+size=$(($disk_cache-1))
 
 # lower to upper bound at evenly distrubuted intervals
-for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
-	time=$({ time ./test $i $writesize_avg; }  2>&1 | grep real)
-	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
+for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts))  )); do
+	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
+	echo -e "$time,$i,$size" >> "${datapath}${fname}"
 done
 rm -rf ./junk/*
 
-#---------------------------------
-# [x] interception 
-# [ ] optimization
-fname="numwrites_w_int_no_opt.csv"
-gcc -g -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
-gcc -g test.c -o test
-echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
 
-# lower to upper bound at evenly distrubuted intervals
-for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
-	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i $writesize_avg; }  2>&1 | grep real)
-	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
-done
-rm -rf ./junk/*
 
-#---------------------------------
-# [ ] interception 
-# [ ] optimization
-fname="numwrites_no_int_no_opt.csv"
-gcc -g test.c -o test
-echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-
-# lower to upper bound at evenly distrubuted intervals
-for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
-	time=$({ time ./test $i $writesize_avg; }  2>&1 | grep real)
-	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
-done
-rm -rf ./junk/*
-
-# ===================================================================================================
+##
+## ======== numwrites x interception x optimization =================================================
+#cd ..
+#datapath=/home/jensenq/research/perf_data/writes_opt_test/
+#
+## [x] interception 
+## [x] optimization
+#fname="numwrites_w_int_w_opt.csv"
+#gcc -O3 -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
+#gcc -03 test.c -o test
+#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
+#
+## lower to upper bound at evenly distrubuted intervals
+#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
+#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i $writesize_avg; }  2>&1 | grep real)
+#	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
+#done
+#rm -rf ./junk/*
+#
+##---------------------------------
+## [ ] interception 
+## [x] optimization
+#fname="numwrites_no_int_w_opt.csv"
+#gcc -03 test.c -o test
+#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
+#
+## lower to upper bound at evenly distrubuted intervals
+#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
+#	time=$({ time ./test $i $writesize_avg; }  2>&1 | grep real)
+#	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
+#done
+#rm -rf ./junk/*
+#
+##---------------------------------
+## [x] interception 
+## [ ] optimization
+#fname="numwrites_w_int_no_opt.csv"
+#gcc -g -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
+#gcc -g test.c -o test
+#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
+#
+## lower to upper bound at evenly distrubuted intervals
+#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
+#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i $writesize_avg; }  2>&1 | grep real)
+#	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
+#done
+#rm -rf ./junk/*
+#
+##---------------------------------
+## [ ] interception 
+## [ ] optimization
+#fname="numwrites_no_int_no_opt.csv"
+#gcc -g test.c -o test
+#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
+#
+## lower to upper bound at evenly distrubuted intervals
+#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=(numwrites_upper_bound/num_data_pts)); do
+#	time=$({ time ./test $i $writesize_avg; }  2>&1 | grep real)
+#	echo -e "$time,$i,$writesize_avg" >> "${datapath}${fname}"
+#done
+#rm -rf ./junk/*
+#
+## ===================================================================================================
 
 
 
