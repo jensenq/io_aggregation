@@ -139,49 +139,51 @@ void insert_fb(int fd, const char* filename, const char* mode){
 
 void flush_buf(file_buf* fb){
 
-	if(DEBUG_LVL>=3){printf("flushing %li bytes from %s buffer\n", fb->curr_size, fb->filename);}
-	// wall-clock timing {
-		struct timeval begin, end;
-		gettimeofday(&begin, 0);
-	// }
 
-	//negative fd signals this is a normal write.
-	write(-1*fb->fd, fb->write_buf, fb->curr_size);
+	return;
+	//if(DEBUG_LVL>=3){printf("flushing %li bytes from %s buffer\n", fb->curr_size, fb->filename);}
+	//// wall-clock timing {
+	//	struct timeval begin, end;
+	//	gettimeofday(&begin, 0);
+	//// }
 
-	// wall-clock timing {
-		if(DEBUG_LVL>=1){
-			gettimeofday(&end, NULL);
-			long seconds = end.tv_sec - begin.tv_sec;
-			long microseconds = end.tv_usec - begin.tv_usec;
-			double elapsed = seconds + microseconds*1e-6;
-			double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
-			//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
-			FILE* f = fopen("perf_analysis/function_timers.log", "!a");
-			fprintf(f, "flush_write, %.6f\n", elapsed);
-			fclose(f);
+	////negative fd signals this is a normal write.
+	//write(-1*fb->fd, fb->write_buf, fb->curr_size);
 
-		}
-	// }
-	// wall-clock timing {
-		struct timeval begin2, end2;
-		gettimeofday(&begin2, 0);
-	// }
+	//// wall-clock timing {
+	//	if(DEBUG_LVL>=1){
+	//		gettimeofday(&end, NULL);
+	//		long seconds = end.tv_sec - begin.tv_sec;
+	//		long microseconds = end.tv_usec - begin.tv_usec;
+	//		double elapsed = seconds + microseconds*1e-6;
+	//		double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
+	//		//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
+	//		FILE* f = fopen("perf_analysis/function_timers.log", "!a");
+	//		fprintf(f, "flush_write, %.6f\n", elapsed);
+	//		fclose(f);
 
-	memset(fb->write_buf, 0, fb->curr_size);
-	fb->curr_size = 0;
-	// wall-clock timing {
-		if(DEBUG_LVL>=1){
-			gettimeofday(&end2, NULL);
-			long seconds = end2.tv_sec - begin2.tv_sec;
-			long microseconds = end2.tv_usec - begin2.tv_usec;
-			double elapsed = seconds + microseconds*1e-6;
-			double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
-			FILE* f = fopen("perf_analysis/function_timers.log", "!a");
-			fprintf(f, "flush_memset, %.6f\n", elapsed);
-			fclose(f);
+	//	}
+	//// }
+	//// wall-clock timing {
+	//	struct timeval begin2, end2;
+	//	gettimeofday(&begin2, 0);
+	//// }
 
-		}
-	// }
+	//memset(fb->write_buf, 0, fb->curr_size);
+	//fb->curr_size = 0;
+	//// wall-clock timing {
+	//	if(DEBUG_LVL>=1){
+	//		gettimeofday(&end2, NULL);
+	//		long seconds = end2.tv_sec - begin2.tv_sec;
+	//		long microseconds = end2.tv_usec - begin2.tv_usec;
+	//		double elapsed = seconds + microseconds*1e-6;
+	//		double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
+	//		FILE* f = fopen("perf_analysis/function_timers.log", "!a");
+	//		fprintf(f, "flush_memset, %.6f\n", elapsed);
+	//		fclose(f);
+
+	//	}
+	//// }
 }
 
 
