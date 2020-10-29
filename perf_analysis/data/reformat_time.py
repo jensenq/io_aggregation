@@ -13,7 +13,8 @@ def main():
 
         for i in range(1, len(lines)):
             line = lines[i].split("m")
-            minute = line[0][-1]
+            minute = line[0].split()[1]
+            print(minute)
             seconds = line[1].split("s")[0]
             rest_of_data = line[1].split("s")[1]
 
