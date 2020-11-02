@@ -7,6 +7,7 @@
 #include <sys/types.h>
 #include <stdbool.h> 
 #include <sys/time.h>
+#include <pthread.h>
 
 #define DEBUG_LVL 0 //0: none. 1: write function timers to file. 2:error printing. 3:all printing
 #define BUF_SIZE_ENV_VAR "AGG_BUFSIZE"
@@ -22,16 +23,22 @@ typedef struct file_buf{
 	struct file_buf* next;    // this is a linked list
 } file_buf;
 
+typedef struct write_args{
+	int fd;
+	void* buf;
+	size_t size;
+} write_args;
 
 /* ===== GLOBAL ===== */
 file_buf* global_fb_ptr = NULL;
 int GLOBAL_BUF_SIZE = 32000000; //default 32MB
+pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*);
-
 int append_write(file_buf*, const void*, size_t);
 file_buf* get_fb_by_fd(int);
 void flush_buf(file_buf*);
+void record_wallclock(struct timeval, struct timeval, file_buf*, char*);
 
 
 
@@ -77,18 +84,7 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 		retval = 0;
 	}
 
-	// wall-clock timing {
-		if(DEBUG_LVL>=1){
-			gettimeofday(&end, NULL);
-			long seconds = end.tv_sec - begin.tv_sec;
-			long microseconds = end.tv_usec - begin.tv_usec;
-			double elapsed = seconds + microseconds*1e-6;
-			//printf("APPEND %.6f\n", elapsed); 
-			FILE* f = fopen("perf_analysis/function_timers.log", "!a");
-			fprintf(f, "append_write, %.6f\n", elapsed);
-			fclose(f);
-		}
-	// }
+	record_wallclock(begin, end, fb, "append_write");
 
 	return retval;
 }
@@ -98,10 +94,8 @@ int append_write(file_buf* fb, const void* buf, size_t size){
  */
 void insert_fb(int fd, const char* filename, const char* mode){
 
-	// wall-clock timing {
-		struct timeval begin, end;
-		gettimeofday(&begin, 0);
-	// }
+	struct timeval begin, end;
+	gettimeofday(&begin, 0);
 
 	//earliest possible spot to grab the env variable
 	char* tmp = getenv(BUF_SIZE_ENV_VAR);
@@ -123,66 +117,48 @@ void insert_fb(int fd, const char* filename, const char* mode){
 			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
 		new_fb->next = old_head;
 		global_fb_ptr = new_fb; 
+
+		record_wallclock(begin, end, new_fb, "insert_fb");
 	}
-	// wall-clock timing {
-		if(DEBUG_LVL>=1){
-			gettimeofday(&end, NULL);
-			long seconds = end.tv_sec - begin.tv_sec;
-			long microseconds = end.tv_usec - begin.tv_usec;
-			double elapsed = seconds + microseconds*1e-6;
-			//printf("INSERT %.6f\n", elapsed); 
-			FILE* f = fopen("perf_analysis/function_timers.log", "!a");
-			fprintf(f, "insert_fb, %.6f\n", elapsed);
-			fclose(f);
-		}
-	// }
+
+}
+
+void* write_handler(void* args){
+	write_args* wa = (write_args*) args;
+
+	pthread_rwlock_wrlock(&rwlock);
+	int tmp = write(wa->fd, wa->buf, wa->size);
+	pthread_rwlock_unlock(&rwlock);
+
+	free(wa);
 }
 
 void flush_buf(file_buf* fb){
 
 	if(DEBUG_LVL>=3){printf("flushing %li bytes from %s buffer\n", fb->curr_size, fb->filename);}
-	// wall-clock timing {
-		struct timeval begin, end;
-		gettimeofday(&begin, 0);
-	// }
+	struct timeval begin, end;
+	gettimeofday(&begin, 0);
 
-	//negative fd signals this is a normal write.
-	write(-1*fb->fd, fb->write_buf, fb->curr_size);
+	pthread_t ptid; 
+	write_args* wa = malloc(sizeof(write_args));
+	wa->fd   = -1*fb->fd; //negative fd signals this is a normal write.
+	wa->buf  = fb->write_buf;
+	wa->size = fb->curr_size;
 
-	// wall-clock timing {
-		if(DEBUG_LVL>=1){
-			gettimeofday(&end, NULL);
-			long seconds = end.tv_sec - begin.tv_sec;
-			long microseconds = end.tv_usec - begin.tv_usec;
-			double elapsed = seconds + microseconds*1e-6;
-			double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
-			//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
-			FILE* f = fopen("perf_analysis/function_timers.log", "!a");
-			fprintf(f, "flush_write, %.6f\n", elapsed);
-			fclose(f);
+	if( pthread_create(&ptid, NULL, &write_handler, wa) ){
+		if(DEBUG_LVL>=2){printf("pthread_create failed\n");}
+	}
 
-		}
-	// }
-	// wall-clock timing {
-		struct timeval begin2, end2;
-		gettimeofday(&begin2, 0);
-	// }
+	record_wallclock(begin, end, fb, "flush_write");
+
+	struct timeval begin2, end2;
+	gettimeofday(&begin2, 0);
 
 	memset(fb->write_buf, 0, fb->curr_size);
 	fb->curr_size = 0;
-	// wall-clock timing {
-		if(DEBUG_LVL>=1){
-			gettimeofday(&end2, NULL);
-			long seconds = end2.tv_sec - begin2.tv_sec;
-			long microseconds = end2.tv_usec - begin2.tv_usec;
-			double elapsed = seconds + microseconds*1e-6;
-			double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
-			FILE* f = fopen("perf_analysis/function_timers.log", "!a");
-			fprintf(f, "flush_memset, %.6f\n", elapsed);
-			fclose(f);
 
-		}
-	// }
+	record_wallclock(begin2, end2, fb, "flush_memset");
+
 }
 
 
@@ -224,19 +200,9 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 		if(DEBUG_LVL>=3){printf("data too large. data size: %li. max size: %i\n", nmemb, GLOBAL_BUF_SIZE);}
 	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 	}
-	// wall-clock timing {
-		if(DEBUG_LVL>=1){
-			gettimeofday(&end, NULL);
-			long seconds = end.tv_sec - begin.tv_sec;
-			long microseconds = end.tv_usec - begin.tv_usec;
-			double elapsed = seconds + microseconds*1e-6;
-			//double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
-			//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
-			FILE* f = fopen("perf_analysis/function_timers.log", "!a");
-			fprintf(f, "fwrite, %.6f\n", elapsed);
-			fclose(f);
-		}
-	// }
+
+	record_wallclock(begin, end, fb, "fwrite");	
+
 	return nmemb;
 }
 
@@ -306,6 +272,19 @@ int close(int fd){
 }
 
 
+void record_wallclock(struct timeval begin, struct timeval end, file_buf* fb, char* name){
+	if(DEBUG_LVL>=1){
+		gettimeofday(&end, NULL);
+		long seconds = end.tv_sec - begin.tv_sec;
+		long microseconds = end.tv_usec - begin.tv_usec;
+		double elapsed = seconds + microseconds*1e-6;
+		double mbytes_per_sec = (fb->curr_size/elapsed)/1000000;
+		//printf("Time to flush %ld bytes: %.3f seconds. (%.3f MB/sec) \n", fb->curr_size, elapsed, mbytes_per_sec);//human readable
+		FILE* f = fopen("function_timers.log", "!a");
+		fprintf(f, "%s, %.6f\n", name, elapsed);
+		fclose(f);
+	}
+}
 
 
 // gets the original filename from the file descriptor

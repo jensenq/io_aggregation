@@ -2,8 +2,6 @@
 *.a
 *.o
 test
-foo.txt
-file.txt
+*.txt
 compile_run.sh
-sigh
-
+*.log

@@ -2,7 +2,7 @@
 all: io_intercept.so test 
 
 io_intercept.so: io_intercept.c
-	gcc -O3 -g -shared -fPIC io_intercept.c -o io_intercept.so -ldl
+	gcc -O3 -g -pthread -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
 
 test: test.c
 	gcc -O3 -g test.c -o test
