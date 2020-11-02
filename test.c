@@ -42,7 +42,10 @@ int main(int argc, char** argv){
 		NUM_FILES = atoi(argv[3]);
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
-	char fname[64] = "/tmp/io_aggregation/perf_analysis/junk/";
+   char fname[64] = "/tmp/io_aggregation/perf_analysis/junk";
+   if (stat(fname, &st) == -1) {
+      mkdir(fname, 0700);
+   } 
 
 	for(int j=0; j<NUM_FILES; j++){
 		strcat(fname, rand_string(&fname[strlen(fname)],5));
