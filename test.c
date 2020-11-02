@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/time.h>
+#include <sys/stat.h>
  
 
 /* William Morris
@@ -42,6 +43,7 @@ int main(int argc, char** argv){
 		NUM_FILES = atoi(argv[3]);
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
+	struct stat st;
    char fname[64] = "/tmp/io_aggregation/perf_analysis/junk";
    if (stat(fname, &st) == -1) {
       mkdir(fname, 0700);
