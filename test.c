@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/time.h>
  
 
 /* William Morris
@@ -41,7 +42,7 @@ int main(int argc, char** argv){
 		NUM_FILES = atoi(argv[3]);
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
-	char fname[64] = "./perf_analysis/junk/";
+	char fname[64] = "/tmp/io_aggregation/perf_analysis/junk/";
 
 	for(int j=0; j<NUM_FILES; j++){
 		strcat(fname, rand_string(&fname[strlen(fname)],5));
@@ -51,7 +52,9 @@ int main(int argc, char** argv){
 		for(int i=0; i<NUM_ITERS; i++){	
 			size_t size = rand() % MAX_SIZE;
 			rand_string(rs, size);
+	
 	   	fwrite(rs, sizeof(char), size, fp );
+
 		}	
 		fclose(fp);
 	}
