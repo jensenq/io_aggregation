@@ -17,105 +17,38 @@ num_data_pts=25
 
 
 
-fname="stress_wo_int.csv"
-make
-echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-
-for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
-	for (( j=writesize_lower_bound; j<writesize_upper_bound; j+=$((writesize_upper_bound/num_data_pts)) )); do
-		time=$({ time ./test $i $j 1; }  2>&1 | grep real)
-		echo -e "$time,$i,$j" >> "${datapath}${fname}"
-		rm -rf ./junk/*
-	done
-done
-
-
-
-#cd ..
-#
-#fname="stress_w_int.csv"
-#make
-#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-#
-#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
-#	for (( j=writesize_lower_bound; j<writesize_upper_bound; j+=$((writesize_upper_bound/num_data_pts)) )); do
-#		time=$({ time LD_PRELOAD=./io_intercept.so ./test $i $j 1; }  2>&1 | grep real)
-#		echo -e "$time,$i,$j" >> "${datapath}${fname}"
-#		rm -rf ./junk/*
-#	done
-#done
-
-
-
-
-## ===== testing flushing vs just destroying data and not flushing ========================================
-## to see if writing is even an issue at all. 
-#numwrites_upper_bound=10000000 
-#num_data_pts=50
-#
-#cd ..
-#fname="with_flush.csv"
-#touch "${datapath}${fname}"
-#make
-#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-#size=$(($disk_cache+1))
-## lower to upper bound at evenly distrubuted intervals
-#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
-#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
-#	echo -e "$time,$i,$size" >> "${datapath}${fname}"
-#done
-#rm -rf ./junk/*
-#
-#
-#cd ./perf_analysis/no_flush_test
-#fname="no_flush.csv"
-#touch "${datapath}${fname}"
-#
-#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-#size=$(($disk_cache+1))
-## lower to upper bound at evenly distrubuted intervals
-#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
-#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
-#	echo -e "$time,$i,$size" >> "${datapath}${fname}"
-#done
-#rm -rf ./junk/*
-
-
-
-
 # ======== disk cache testing ==============================================================================
-#disk_cache=8192000
-#datapath=~/research/io_aggregation/perf_analysis/data/disk_cache_test/
-#
-#
-#cd ..
-#
-#fname="over_cache.csv"
-#touch "${datapath}${fname}"
-#gcc -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
-#gcc test.c -o test
-#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-#size=$(($disk_cache+1))
-## lower to upper bound at evenly distrubuted intervals
-#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
-#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
-#	echo -e "$time,$i,$size" >> "${datapath}${fname}"
-#done
-#rm -rf ./junk/*
-#
-#fname="under_cache.csv"
-#touch "${datapath}${fname}"
-#gcc -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
-#gcc test.c -o test
-#echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
-#size=$(($disk_cache-1))
-#
-## lower to upper bound at evenly distrubuted intervals
-#for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts))  )); do
-#	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
-#	echo -e "$time,$i,$size" >> "${datapath}${fname}"
-#done
-#rm -rf ./junk/*
+disk_cache=8192000
+datapath=~/research/io_aggregation/perf_analysis/data/disk_cache_test/
+
+
+
+fname="over_cache.csv"
+touch "${datapath}${fname}"
+gcc -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
+gcc test.c -o test
+echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
+size=$(($disk_cache+1))
+# lower to upper bound at evenly distrubuted intervals
+for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
+	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
+	echo -e "$time,$i,$size" >> "${datapath}${fname}"
+done
+rm -rf ./junk/*
+
+fname="under_cache.csv"
+touch "${datapath}${fname}"
+gcc -shared -fPIC  io_intercept.c -o io_intercept.so -ldl
+gcc test.c -o test
+echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
+size=$(($disk_cache-1))
+
+# lower to upper bound at evenly distrubuted intervals
+for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts))  )); do
+	time=$({ time LD_PRELOAD=./io_intercept.so ./test $i size 1; }  2>&1 | grep real)
+	echo -e "$time,$i,$size" >> "${datapath}${fname}"
+done
+rm -rf ./junk/*
 
 
 
