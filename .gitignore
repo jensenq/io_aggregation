@@ -1,4 +1,5 @@
 *.so
+core
 *.a
 *.o
 test
