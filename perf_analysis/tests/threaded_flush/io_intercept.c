@@ -30,8 +30,16 @@ typedef struct write_args{
 } write_args;
 
 /* ===== GLOBAL ===== */
+/* note: although this many global variables may raise eyebrows, it is necessary due to the nature
+   of being an interception-based library. */
 file_buf* global_fb_ptr = NULL;
 int GLOBAL_BUF_SIZE = 32000000; //default 32MB
+
+pthread_cond_t cond_flush;                                                            
+pthread_mutex_t mutex_flush;   
+write_args wa; //upon flushing, main thread writes arguments here, FLUSHER reads these args
+pthread_mutex_t mutex_wa; //write args
+pthread_t FLUSHER;
 pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*);
@@ -123,34 +131,52 @@ void insert_fb(int fd, const char* filename, const char* mode){
 
 }
 
-void* write_handler(void* args){
-	write_args* wa = (write_args*) args;
+/* upon receiving the signal that it's time to flush, reads the global variable, 
+   wa, then flushes. This (hopefully) allows the rest of the program to carry on 
+   without blocking. */
+void* flush_handler(void* args){
 
-	pthread_rwlock_wrlock(&rwlock);
-	int tmp = write(wa->fd, wa->buf, wa->size);
-	pthread_rwlock_unlock(&rwlock);
+	while(1){
+	
+		pthread_mutex_lock(&mutex_flush);
+		pthread_cond_wait(&cond_flush, &mutex_flush);
+		
+		pthread_rwlock_wrlock(&rwlock);
+		int tmp = write(wa.fd, wa.buf, wa.size);
+		pthread_rwlock_unlock(&rwlock);
+	
+		pthread_mutex_unlock(&mutex_flush);
 
-	free(wa);
+	}
 }
 
+/* spins FLUSHER if it's not spun yet (aka this is the first flush). Then passes 
+   data about this flush to the global variable, wa, and signals FLUSHER to flush.
+   finall, resets the file_buf's buffer */
 void flush_buf(file_buf* fb){
 
 	if(DEBUG_LVL>=3){printf("flushing %li bytes from %s buffer\n", fb->curr_size, fb->filename);}
+
+
 	struct timeval begin, end;
 	gettimeofday(&begin, 0);
 
-	pthread_t ptid; 
-	write_args* wa = malloc(sizeof(write_args));
-	wa->fd   = -1*fb->fd; //negative fd signals this is a normal write.
-	wa->buf  = fb->write_buf;
-	wa->size = fb->curr_size;
-
-	if( pthread_create(&ptid, NULL, &write_handler, wa) ){
-		if(DEBUG_LVL>=2){printf("pthread_create failed\n");}
+	if(!FLUSHER){
+		pthread_mutex_init(&mutex_flush, NULL);
+		pthread_cond_init(&cond_flush, NULL);
+		pthread_mutex_init(&mutex_wa, NULL);
+		pthread_create(&FLUSHER, NULL, &flush_handler, NULL);
 	}
 
-	record_wallclock(begin, end, fb, "flush_write");
+	// data about this flush placed in global buffer for FLUSHER to read.
+	pthread_mutex_lock(&mutex_wa);
+		wa.fd   = -1*fb->fd; //negative fd signals this is a normal write.
+		wa.buf  = fb->write_buf;
+		wa.size = fb->curr_size;
+		pthread_cond_signal(&cond_flush);
+	pthread_mutex_unlock(&mutex_wa);
 
+	record_wallclock(begin, end, fb, "flush");
 	struct timeval begin2, end2;
 	gettimeofday(&begin2, 0);
 
