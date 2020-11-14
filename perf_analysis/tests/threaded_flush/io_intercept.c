@@ -66,7 +66,7 @@ file_buf* get_fb_by_fd(int fd){
 	return tmp;
 }
 
-/* places the data of a write() into the write buffer
+/* copies the buffer of a write() into our write buffer
  * if this new data will overflow the buffer, flush the buffer first.
  * returns 0 if successful, -1 if the write is too large for the buffer,
  * which should be written normally
