@@ -7,7 +7,7 @@ writesize_lower_bound=10
 writesize_avg=1000
 writesize_upper_bound=100000
 
-numwrites_lower_bound=1000
+numwrites_lower_bound=200
 numwrites_avg=136000
 numwrites_upper_bound=100000000
 
@@ -15,7 +15,7 @@ numfiles=1
 bufsize=32000000
 num_data_pts=25
 
-
+200, 100
 
 fname="threaded_flush.csv"
 make
