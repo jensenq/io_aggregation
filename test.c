@@ -44,7 +44,7 @@ int main(int argc, char** argv){
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
 	struct stat st;
-   char fname[64] = "/tmp/io_aggregation/perf_analysis/junk/";
+   char fname[64] = "/tmp/junk_delete_me/";
    if (stat(fname, &st) == -1) {
       mkdir(fname, 0700);
    } 
