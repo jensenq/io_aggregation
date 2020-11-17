@@ -1,18 +1,20 @@
 
-all: io_intercept.so test 
+all: filcio.so test 
 
-io_intercept.so: io_intercept.c
-	gcc -O3 -g -shared -fPIC io_intercept.c -o io_intercept.so -ldl
+filcio.so: filcio.c
+	gcc -pthread -g -shared -fPIC filcio.c -o filcio.so -ldl
 
 test: test.c
+	gcc -g test.c -o test
+
+opt: 
+	gcc -O3 -pthread -g -shared -fPIC filcio.c -o filcio.so -ldl
 	gcc -O3 -g test.c -o test
 
-run: io_intercept.so test
+run: filcio.so test
 	export AGG_BUFSIZE=32000000
-	LD_PRELOAD=$(PWD)/io_intercept.so ./test
+	LD_PRELOAD=./filcio.so ./test
 
 clean:
-	rm test io_intercept.so perf_analysis/junk/*
-
-
+	-@rm test filcio.so perf_analysis/junk/* 2>/dev/null || true
 
