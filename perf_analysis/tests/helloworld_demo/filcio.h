@@ -25,10 +25,6 @@ typedef struct write_args{
 file_buf* global_fb_ptr = NULL;
 int GLOBAL_BUF_SIZE = 32000000; //default 32MB
 
-
-pthread_cond_t   cond_delete;  // allow main thread to delete fb after its finished its flush
-pthread_mutex_t  mutex_delete; // ^
-
 pthread_cond_t   cond_flush;  // flushing signal
 pthread_mutex_t  mutex_flush; // ^
 
@@ -53,7 +49,7 @@ void* flush_handler(void*);
 
 /* copies the buffer of a write() into our write buffer
  * if this new data will overflow the buffer, flush the buffer first.
- * returns 0 if successful, 1 if the write is too large for the buffer,
+ * returns 0 if successful, -1 if the write is too large for the buffer,
  * which should be written normally
  */
 int append_write(file_buf*, const void*, size_t);
@@ -72,20 +68,5 @@ void delete_fb(file_buf*);
 
 void record_wallclock(struct timeval, struct timeval, file_buf*, char*);
 size_t (*orig_fwrite)(const void*, size_t, size_t, FILE*);
-
-/*
-b flush_buf
-y
-b flush_handler
-y
-b append_write
-y
-b insert_fb
-y
-b get_fb_by_fd
-y
-b delete_fb
-y
-*/
 
 #endif 

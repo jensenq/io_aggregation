@@ -20,9 +20,6 @@ void* flush_handler(void* args){
 		pthread_rwlock_wrlock(&rwlock);
 		int tmp = write(wa.fd, wa.buf, wa.size);
 		pthread_rwlock_unlock(&rwlock);
-
-		//allow main thread to delete this fb's data
-		pthread_cond_signal(&cond_delete);
 	
 		pthread_mutex_unlock(&mutex_flush);
 	}
@@ -34,12 +31,8 @@ void flush_buf(file_buf* fb){
 	gettimeofday(&begin, 0);
 
 	if(!FLUSHER){
-		pthread_mutex_init(&mutex_delete, NULL);
-		pthread_cond_init(&cond_delete, NULL);
-
 		pthread_mutex_init(&mutex_flush, NULL);
 		pthread_cond_init(&cond_flush, NULL);
-
 		pthread_mutex_init(&mutex_wa, NULL);
 		pthread_create(&FLUSHER, NULL, &flush_handler, NULL);
 	}
@@ -60,9 +53,7 @@ void flush_buf(file_buf* fb){
 	fb->curr_size = 0;
 
 	record_wallclock(begin2, end2, fb, "flush_memset");
-
 }
-
 
 file_buf* get_fb_by_fd(int fd){
 	file_buf* tmp = global_fb_ptr;
@@ -80,9 +71,10 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 	struct timeval begin, end;
 	gettimeofday(&begin, 0);
 
-	int retval = 1;
+	int retval = -1;
 	if(size <= GLOBAL_BUF_SIZE){
 		if(fb->curr_size + size > GLOBAL_BUF_SIZE){
+			if(DEBUG_LVL>=2){printf("not enough space remaining. data size: %li. curr_size: %li. max size: %i\n", size, fb->curr_size, GLOBAL_BUF_SIZE);}
 			flush_buf(fb);
 		}
 		
@@ -126,8 +118,7 @@ void insert_fb(int fd, const char* filename, const char* mode){
 }
 
 void delete_fb(file_buf* fb){
-/* TODO: fix
-
+/*
 	file_buf* tmp = global_fb_ptr;
 	while(tmp != NULL){
 		if(tmp->next == fb){
@@ -165,8 +156,8 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 
 	file_buf* fb = get_fb_by_fd(fileno(stream));
 	
-	int too_big = append_write(fb, ptr, nmemb);
-	if(too_big){ 
+	int too_big_flag = append_write(fb, ptr, nmemb);
+	if(too_big_flag == -1){ // write too big for buffer
 	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 	}
 
@@ -178,7 +169,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
-	if(fb){flush_buf(fb);}
+	flush_buf(fb);
 	return orig_fread(ptr, size, nmemb, stream);
 }
 
@@ -188,16 +179,23 @@ int fclose(FILE* stream){
 	file_buf* fb = get_fb_by_fd(fd);
 	if(fb){
 		flush_buf(fb);
-
-		pthread_mutex_lock(&mutex_delete);
-		pthread_cond_wait(&cond_delete, &mutex_delete);
-		printf("here\n");
 		delete_fb(fb);
-		printf("here2\n");
-		pthread_mutex_unlock(&mutex_delete);
-		printf("here3\n");
 	}
 		return orig_fclose(stream); 
+}
+
+int open(const char *filename, int flags, ...){
+	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
+	int orig_retval = orig_open(filename, flags);
+	insert_fb(orig_retval, filename, "");
+	return orig_retval;
+}
+
+ssize_t read(int fd, void *buf, size_t count){
+	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
+	file_buf* fb = get_fb_by_fd(fd);
+	flush_buf(fb);
+	return orig_read(fd, buf, count);
 }
 
 ssize_t write(int fd, const void *buf, size_t count){
@@ -210,8 +208,8 @@ ssize_t write(int fd, const void *buf, size_t count){
 	   return orig_write(-fd, buf, count);
 	}
 	else{
-		int too_big = append_write(fb, buf, count);
-		if(too_big){ 
+		int too_big_flag = append_write(fb, buf, count);
+		if(too_big_flag == -1){ // write too big for buffer
 			return orig_write(fd, buf, count);
 		}
 	}
@@ -219,32 +217,13 @@ ssize_t write(int fd, const void *buf, size_t count){
 	return count;
 }
 
-
-int open(const char *filename, int flags, ...){
-	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
-	int orig_retval = orig_open(filename, flags);
-	insert_fb(orig_retval, filename, "");
-	return orig_retval;
-}
-
-ssize_t read(int fd, void *buf, size_t count){
-	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
-	file_buf* fb = get_fb_by_fd(fd);
-	if(fb){flush_buf(fb);}
-	return orig_read(fd, buf, count);
-}
-
-/* TODO: this needs its own locking. reusing the same from fclose causes undefined */
 int close(int fd){
 	int (*orig_close)(int) = dlsym(RTLD_NEXT, "close");
 	file_buf* fb = get_fb_by_fd(fd);
-	if(fb){
-		flush_buf(fb);
-		delete_fb(fb);
-	}
+	flush_buf(fb);
+	delete_fb(fb);
 	return orig_close(fd); 
 }
-
 
 
 void record_wallclock(struct timeval begin, struct timeval end, file_buf* fb, char* name){

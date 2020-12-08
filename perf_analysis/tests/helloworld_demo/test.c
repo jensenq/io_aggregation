@@ -37,29 +37,32 @@ int main(int argc, char** argv){
 	int NUM_ITERS = 10000;
 	int MAX_SIZE = 100000;
 	int NUM_FILES = 1;
-	if(argc > 3){
+	if(argc >= 2){
 		NUM_ITERS = atoi(argv[1]);
 		MAX_SIZE = atoi(argv[2]);
 		NUM_FILES = atoi(argv[3]);
 	}
 	char* rs = rand_string_alloc(MAX_SIZE);
 	struct stat st;
-   char fname[64] = "/tmp/junk_delete_me/";
-   if (stat(fname, &st) == -1) {
-      mkdir(fname, 0700);
-   } 
+   //char fname[64] = "/tmp/junk_delete_me/";
+   char fname[64] = "outfile.txt";
+   //if (stat(fname, &st) == -1) {
+      //mkdir(fname, 0700);
+   //} 
 
+	char* s = "hello world\n";
 
 	for(int j=0; j<NUM_FILES; j++){
-		strcat(fname, rand_string(&fname[strlen(fname)],5));
-		strcat(fname, ".txt");
+		//strcat(fname, rand_string(&fname[strlen(fname)],5));
+		//strcat(fname, ".txt");
    	FILE* fp = fopen( fname , "w" );
 
 		for(int i=0; i<NUM_ITERS; i++){	
-			size_t size = rand() % MAX_SIZE;
-			rand_string(rs, size);	
+			//size_t size = rand() % MAX_SIZE;
+			//rand_string(rs, size);	
 
-	   	fwrite(rs, sizeof(char), size, fp );
+	   	//fwrite(rs, sizeof(char), size, fp );
+	   	fwrite(s, sizeof(char), strlen(s), fp );
 
 		}	
 		fclose(fp);
