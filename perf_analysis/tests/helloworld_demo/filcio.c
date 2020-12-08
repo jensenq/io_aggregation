@@ -8,8 +8,6 @@
 #include <pthread.h>
 #include "filcio.h"
 
-// 0: none | 1: write function timers to file | 2: errors
-#define DEBUG_LVL 0 
 
 void* flush_handler(void* args){
 
@@ -18,21 +16,29 @@ void* flush_handler(void* args){
 		pthread_cond_wait(&cond_flush, &mutex_flush);
 		
 		pthread_rwlock_wrlock(&rwlock);
+		if(DEBUG_LVL>=2){printf("Thread 2 writing to disk\n");}
 		int tmp = write(wa.fd, wa.buf, wa.size);
 		pthread_rwlock_unlock(&rwlock);
+
+		//allow main thread to delete this fb's data
+		pthread_cond_signal(&cond_delete);
 	
 		pthread_mutex_unlock(&mutex_flush);
 	}
 }
 
 void flush_buf(file_buf* fb){
-
+	
 	struct timeval begin, end;
 	gettimeofday(&begin, 0);
 
 	if(!FLUSHER){
+		pthread_mutex_init(&mutex_delete, NULL);
+		pthread_cond_init(&cond_delete, NULL);
+
 		pthread_mutex_init(&mutex_flush, NULL);
 		pthread_cond_init(&cond_flush, NULL);
+
 		pthread_mutex_init(&mutex_wa, NULL);
 		pthread_create(&FLUSHER, NULL, &flush_handler, NULL);
 	}
@@ -53,7 +59,18 @@ void flush_buf(file_buf* fb){
 	fb->curr_size = 0;
 
 	record_wallclock(begin2, end2, fb, "flush_memset");
+
 }
+
+
+void final_flush(file_buf* fb){
+	if(DEBUG_LVL>=2){printf("Final flush\n");}
+	pthread_rwlock_wrlock(&rwlock);
+	write(-(fb->fd), fb->write_buf, fb->curr_size);
+	pthread_rwlock_unlock(&rwlock);
+}
+
+
 
 file_buf* get_fb_by_fd(int fd){
 	file_buf* tmp = global_fb_ptr;
@@ -67,14 +84,14 @@ file_buf* get_fb_by_fd(int fd){
 }
 
 int append_write(file_buf* fb, const void* buf, size_t size){
+	if(DEBUG_LVL>=2){printf("copying write to memory\n");}
 	
 	struct timeval begin, end;
 	gettimeofday(&begin, 0);
 
-	int retval = -1;
+	int retval = 1;
 	if(size <= GLOBAL_BUF_SIZE){
 		if(fb->curr_size + size > GLOBAL_BUF_SIZE){
-			if(DEBUG_LVL>=2){printf("not enough space remaining. data size: %li. curr_size: %li. max size: %i\n", size, fb->curr_size, GLOBAL_BUF_SIZE);}
 			flush_buf(fb);
 		}
 		
@@ -87,19 +104,21 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 	return retval;
 }
 
-void insert_fb(int fd, const char* filename, const char* mode){
+void alloc_fb(int fd, const char* filename, const char* mode){
 
 	struct timeval begin, end;
 	gettimeofday(&begin, 0);
 
-	//earliest possible spot to grab the env variable
+	//earliest possible spot to grab the env variables
 	char* tmp = getenv(BUF_SIZE_ENV_VAR);
-	if(tmp!=NULL){
-		GLOBAL_BUF_SIZE = atoi(tmp);
-	}
+	if(tmp!=NULL){ GLOBAL_BUF_SIZE = atoi(tmp); }
+	tmp = getenv(DEBUG_LVL_ENV_VAR);
+	if(tmp!=NULL){ DEBUG_LVL = atoi(tmp); }
 
-	if(get_fb_by_fd(fd) != NULL){ //already exists
-		if(DEBUG_LVL>=2){printf("Error: this file buffer is already in memory");}
+	if(DEBUG_LVL>=2){printf("Allocating memory for new file buf\n");}
+
+	if(get_fb_by_fd(fd) != NULL){ 
+		if(DEBUG_LVL>=2){printf("Error: this file buffer is already in memory\n");}
 	}
 	else{
 		file_buf* old_head = global_fb_ptr;
@@ -113,12 +132,13 @@ void insert_fb(int fd, const char* filename, const char* mode){
 		new_fb->next = old_head;
 		global_fb_ptr = new_fb; 
 
-		record_wallclock(begin, end, new_fb, "insert_fb");
+		record_wallclock(begin, end, new_fb, "alloc_fb");
 	}
 }
 
 void delete_fb(file_buf* fb){
-/*
+/* TODO: fix
+
 	file_buf* tmp = global_fb_ptr;
 	while(tmp != NULL){
 		if(tmp->next == fb){
@@ -143,7 +163,7 @@ FILE* fopen(const char *filename, const char *mode){
 	}
 	
 	FILE* orig_retval = orig_fopen(filename, mode);
-	insert_fb(fileno(orig_retval), filename, mode);
+	alloc_fb(fileno(orig_retval), filename, mode);
 	return orig_retval;
 }
 
@@ -156,8 +176,8 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 
 	file_buf* fb = get_fb_by_fd(fileno(stream));
 	
-	int too_big_flag = append_write(fb, ptr, nmemb);
-	if(too_big_flag == -1){ // write too big for buffer
+	int too_big = append_write(fb, ptr, nmemb);
+	if(too_big){ 
 	   return orig_fwrite(ptr, size, nmemb, stream);	  	 
 	}
 
@@ -169,7 +189,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
-	flush_buf(fb);
+	if(fb){flush_buf(fb);}
 	return orig_fread(ptr, size, nmemb, stream);
 }
 
@@ -178,24 +198,10 @@ int fclose(FILE* stream){
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
 	if(fb){
-		flush_buf(fb);
+		final_flush(fb);
 		delete_fb(fb);
 	}
 		return orig_fclose(stream); 
-}
-
-int open(const char *filename, int flags, ...){
-	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
-	int orig_retval = orig_open(filename, flags);
-	insert_fb(orig_retval, filename, "");
-	return orig_retval;
-}
-
-ssize_t read(int fd, void *buf, size_t count){
-	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
-	file_buf* fb = get_fb_by_fd(fd);
-	flush_buf(fb);
-	return orig_read(fd, buf, count);
 }
 
 ssize_t write(int fd, const void *buf, size_t count){
@@ -208,8 +214,8 @@ ssize_t write(int fd, const void *buf, size_t count){
 	   return orig_write(-fd, buf, count);
 	}
 	else{
-		int too_big_flag = append_write(fb, buf, count);
-		if(too_big_flag == -1){ // write too big for buffer
+		int too_big = append_write(fb, buf, count);
+		if(too_big){ 
 			return orig_write(fd, buf, count);
 		}
 	}
@@ -217,13 +223,32 @@ ssize_t write(int fd, const void *buf, size_t count){
 	return count;
 }
 
+
+int open(const char *filename, int flags, ...){
+	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
+	int orig_retval = orig_open(filename, flags);
+	alloc_fb(orig_retval, filename, "");
+	return orig_retval;
+}
+
+ssize_t read(int fd, void *buf, size_t count){
+	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
+	file_buf* fb = get_fb_by_fd(fd);
+	if(fb){flush_buf(fb);}
+	return orig_read(fd, buf, count);
+}
+
+/* TODO: this needs its own locking. reusing the same from fclose causes undefined */
 int close(int fd){
 	int (*orig_close)(int) = dlsym(RTLD_NEXT, "close");
 	file_buf* fb = get_fb_by_fd(fd);
-	flush_buf(fb);
-	delete_fb(fb);
+	if(fb){
+		flush_buf(fb);
+		delete_fb(fb);
+	}
 	return orig_close(fd); 
 }
+
 
 
 void record_wallclock(struct timeval begin, struct timeval end, file_buf* fb, char* name){
