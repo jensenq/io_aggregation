@@ -9,9 +9,11 @@ typedef struct file_buf{
 	const char* filename;
 	const char* mode;
 	int fd;
-	size_t curr_size;         // how full the buffer is in bytes
-	unsigned char* write_buf; // one contiguous chunk of memory
-	struct file_buf* next;    // this is a linked list
+	size_t curr_size;     	// also acts as pointer to the end of data
+	unsigned char* buf;  	// buffer currently being filled
+	unsigned char* bufA;  	// double buffering implemented to allow one buffer
+	unsigned char* bufB;  	// to be filled, while the other is flushed.
+	struct file_buf* next;	// this is a linked list
 } file_buf;
 
 //upon flushing, main thread writes arguments here, FLUSHER reads these args
@@ -28,9 +30,6 @@ int GLOBAL_BUF_SIZE = 32000000; //default 32MB
 int DEBUG_LVL = 0; 
 
 
-pthread_cond_t   cond_delete;  // allow main thread to delete fb after its finished its flush
-pthread_mutex_t  mutex_delete; // ^
-
 pthread_cond_t   cond_flush;  // flushing signal
 pthread_mutex_t  mutex_flush; // ^
 
@@ -45,13 +44,16 @@ pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 /* spins FLUSHER if it's not spun yet (aka this is the first flush). Then passes 
    data about this flush to the global variable, wa, and signals FLUSHER to flush.
-   finall, resets the file_buf's buffer */
+   finally, resets the file_buf's buffer */
 void flush_buf(file_buf*);
 
 /* upon receiving the signal that it's time to flush, reads the global variable, 
    wa, then flushes. This (hopefully) allows the rest of the program to carry on 
    without blocking. */
 void* flush_handler(void*);
+
+/* special flush for fclose(), so we don't have to deal with race cases */
+void final_flush(file_buf*);
 
 /* copies the buffer of a write() into our write buffer
  * if this new data will overflow the buffer, flush the buffer first.

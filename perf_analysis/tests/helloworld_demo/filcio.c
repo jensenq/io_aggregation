@@ -13,15 +13,13 @@ void* flush_handler(void* args){
 
 	while(1){
 		pthread_mutex_lock(&mutex_flush);
+
 		pthread_cond_wait(&cond_flush, &mutex_flush);
-		
-		pthread_rwlock_wrlock(&rwlock);
 		if(DEBUG_LVL>=2){printf("Thread 2 writing to disk\n");}
+
+		pthread_rwlock_wrlock(&rwlock);
 		int tmp = write(wa.fd, wa.buf, wa.size);
 		pthread_rwlock_unlock(&rwlock);
-
-		//allow main thread to delete this fb's data
-		pthread_cond_signal(&cond_delete);
 	
 		pthread_mutex_unlock(&mutex_flush);
 	}
@@ -33,20 +31,18 @@ void flush_buf(file_buf* fb){
 	gettimeofday(&begin, 0);
 
 	if(!FLUSHER){
-		pthread_mutex_init(&mutex_delete, NULL);
-		pthread_cond_init(&cond_delete, NULL);
-
+		
 		pthread_mutex_init(&mutex_flush, NULL);
 		pthread_cond_init(&cond_flush, NULL);
-
 		pthread_mutex_init(&mutex_wa, NULL);
+
 		pthread_create(&FLUSHER, NULL, &flush_handler, NULL);
 	}
 
 	// data about this flush placed in global buffer for FLUSHER to read.
 	pthread_mutex_lock(&mutex_wa);
 		wa.fd   = -1*fb->fd; //negative fd signals this is a normal write.
-		wa.buf  = fb->write_buf;
+		wa.buf  = fb->buf;
 		wa.size = fb->curr_size;
 		pthread_cond_signal(&cond_flush);
 	pthread_mutex_unlock(&mutex_wa);
@@ -55,18 +51,23 @@ void flush_buf(file_buf* fb){
 	struct timeval begin2, end2;
 	gettimeofday(&begin2, 0);
 
-	//memset(fb->write_buf, 0, fb->curr_size);
+	//switch which buffer is being filled
+	if(fb->buf == fb->bufA)
+		fb->buf = fb->bufB;
+	else
+		fb->buf = fb->bufA;
+
 	fb->curr_size = 0;
 
 	record_wallclock(begin2, end2, fb, "flush_memset");
-
 }
 
 
 void final_flush(file_buf* fb){
 	if(DEBUG_LVL>=2){printf("Final flush\n");}
+
 	pthread_rwlock_wrlock(&rwlock);
-	write(-(fb->fd), fb->write_buf, fb->curr_size);
+	write(-(fb->fd), fb->buf, fb->curr_size);
 	pthread_rwlock_unlock(&rwlock);
 }
 
@@ -95,7 +96,7 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 			flush_buf(fb);
 		}
 		
-		memcpy(&fb->write_buf[fb->curr_size], buf, size);
+		memcpy(&fb->buf[fb->curr_size], buf, size);
 		fb->curr_size += size;
 		retval = 0;
 	}
@@ -127,8 +128,11 @@ void alloc_fb(int fd, const char* filename, const char* mode){
 		new_fb->mode = mode;
 		new_fb->fd = fd;
 		new_fb->curr_size = 0;
-		new_fb->write_buf = (unsigned char*)malloc(
+		new_fb->bufA = (unsigned char*)malloc(
 			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
+		new_fb->bufB = (unsigned char*)malloc(
+			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
+		new_fb->buf = new_fb->bufA;
 		new_fb->next = old_head;
 		global_fb_ptr = new_fb; 
 
@@ -147,7 +151,7 @@ void delete_fb(file_buf* fb){
 		}
 	}
 */
-	free(fb->write_buf);
+	free(fb->buf);
 	free(fb);
 }
 
@@ -189,7 +193,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
 	int fd = fileno(stream);
 	file_buf* fb = get_fb_by_fd(fd);
-	if(fb){flush_buf(fb);}
+	if(fb){final_flush(fb);}
 	return orig_fread(ptr, size, nmemb, stream);
 }
 
@@ -234,7 +238,7 @@ int open(const char *filename, int flags, ...){
 ssize_t read(int fd, void *buf, size_t count){
 	ssize_t (*orig_read)(int, void*, size_t) = dlsym(RTLD_NEXT, "read");
 	file_buf* fb = get_fb_by_fd(fd);
-	if(fb){flush_buf(fb);}
+	if(fb){final_flush(fb);}
 	return orig_read(fd, buf, count);
 }
 

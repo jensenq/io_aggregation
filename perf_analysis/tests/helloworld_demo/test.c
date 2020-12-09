@@ -46,12 +46,13 @@ int main(int argc, char** argv){
 	struct stat st;
    char fname[64] = "outfile.txt";
 
-	char s[12];
+	char s[32];
+
 	for(int j=0; j<NUM_FILES; j++){
    	FILE* fp = fopen( fname , "w" );
 
 		for(int i=0; i<NUM_ITERS; i++){	
-			sprintf(s, "%d\n", i);
+			sprintf(s, "hello world %d\n", i);
 	   	fwrite(s, sizeof(char), strlen(s), fp );
 		}	
 		fclose(fp);
