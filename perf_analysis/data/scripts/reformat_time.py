@@ -7,7 +7,7 @@ def main():
     with open(sys.argv[1], 'r') as fin:
         lines = fin.readlines()
 
-    with open("new_"+sys.argv[1], 'w') as fout:
+    with open("new_"+sys.argv[1], 'w+') as fout:
         header = lines[0].split("real,")[1]
         fout.write(header)
 
