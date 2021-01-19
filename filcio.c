@@ -74,7 +74,7 @@ void final_flush(file_buf* fb){
 
 
 file_buf* get_fb_by_fd(int fd){
-	file_buf* tmp = global_fb_ptr;
+	file_buf* tmp = head;
 	while(tmp != NULL){
 		if(tmp->fd == fd){
 			return tmp;
@@ -122,7 +122,7 @@ void alloc_fb(int fd, const char* filename, const char* mode){
 		if(DEBUG_LVL>=2){printf("Error: this file buffer is already in memory\n");}
 	}
 	else{
-		file_buf* old_head = global_fb_ptr;
+		file_buf* old_head = head;
 		file_buf* new_fb = (file_buf*) malloc(sizeof(file_buf));
 		new_fb->filename = filename;
 		new_fb->mode = mode;
@@ -134,25 +134,30 @@ void alloc_fb(int fd, const char* filename, const char* mode){
 			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
 		new_fb->buf = new_fb->bufA;
 		new_fb->next = old_head;
-		global_fb_ptr = new_fb; 
+		head = new_fb; 
 
 		record_wallclock(begin, end, new_fb, "alloc_fb");
 	}
 }
 
 void delete_fb(file_buf* fb){
-/* TODO: fix
+	 file_buf *temp = head, *prev;
 
-	file_buf* tmp = global_fb_ptr;
-	while(tmp != NULL){
-		if(tmp->next == fb){
-			tmp = tmp->next->next;
-			break;
-		}
-	}
-*/
-	free(fb->buf);
-	free(fb);
+  if (temp != NULL && temp == fb) {
+    head = temp->next;
+    free(temp);
+    return;
+  }
+  while (temp != NULL && temp != fb) {
+    prev = temp;
+    temp = temp->next;
+  }
+
+  if (temp == NULL) 
+		return;
+
+  prev->next = temp->next;
+  free(temp);
 }
 
 /* ===== INTERCEPTION ===== */
