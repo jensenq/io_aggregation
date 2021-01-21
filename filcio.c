@@ -258,7 +258,17 @@ int close(int fd){
 	return orig_close(fd); 
 }
 
-
+/*
+size_t fprintf(FILE *stream, const char *format, ...){
+	if(!orig_fprintf){ orig_fwrite = dlsym(RTLD_NEXT, "fprintf"); }
+	file_buf* fb = get_fb_by_fd(fileno(stream));
+	int too_big = append_write(fb, ?);
+	if(too_big){ 
+	   return orig_fprintf(stream, format);	  	 
+	}
+	return ?;
+}
+*/
 
 void record_wallclock(struct timeval begin, struct timeval end, file_buf* fb, char* name){
 	if(DEBUG_LVL>=1){
