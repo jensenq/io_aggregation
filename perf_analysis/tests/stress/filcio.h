@@ -25,7 +25,7 @@ typedef struct write_args{
 
 //
 
-file_buf* global_fb_ptr = NULL;
+file_buf* head = NULL;
 int GLOBAL_BUF_SIZE = 32000000; //default 32MB
 int DEBUG_LVL = 0; 
 
