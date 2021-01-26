@@ -29,12 +29,12 @@ int main(int argc, char** argv){
 	int NUM_ITERS = 10000;
 	int MAX_SIZE = 100000;
 	int NUM_FILES = 1;
-	int UNIQUE_STRS = 1;
+	int UNIQUE_STRS = 0;
 	if(argc > 4){
 		NUM_ITERS = atoi(argv[1]);
 		MAX_SIZE = atoi(argv[2]);
 		NUM_FILES = atoi(argv[3]);
-		UNIQUE_STRS = atoi(argv[4]);
+		//UNIQUE_STRS = atoi(argv[4]);
 	}
 	 char* rs = rand_string_alloc(MAX_SIZE);
 	 struct stat st;

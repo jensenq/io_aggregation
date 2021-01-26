@@ -17,13 +17,15 @@ num_data_pts=25
 
 
 
-fname="threaded_stress.csv"
+fname="wint.csv"
 make
 echo -e "real,time,numwrites,size" >> "${datapath}${fname}"
 
 for (( i=numwrites_lower_bound; i<numwrites_upper_bound; i+=$((numwrites_upper_bound/num_data_pts)) )); do
 	for (( j=writesize_lower_bound; j<writesize_upper_bound; j+=$((writesize_upper_bound/num_data_pts)) )); do
-		time=$({ time ./test $i $j 1; }  2>&1 | grep real)
+
+		time=$({ time LD_PRELOAD=./filcio.so ./test $i $j 1 0; }  2>&1 | grep real)
+
 		echo -e "$time,$i,$j" >> "${datapath}${fname}"
 		rm -rf ../../junk/*
 	done
