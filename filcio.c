@@ -72,7 +72,6 @@ void final_flush(file_buf* fb){
 }
 
 
-
 file_buf* get_fb_by_fd(int fd){
 	file_buf* tmp = head;
 	while(tmp != NULL){
@@ -83,6 +82,7 @@ file_buf* get_fb_by_fd(int fd){
 	}
 	return tmp;
 }
+
 
 int append_write(file_buf* fb, const void* buf, size_t size){
 	if(DEBUG_LVL>=2){printf("copying write to memory\n");}
@@ -105,7 +105,8 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 	return retval;
 }
 
-void alloc_fb(int fd, const char* filename, const char* mode){
+
+file_buf* alloc_fb(int fd, const char* filename, const char* mode){
 
 	struct timeval begin, end;
 	gettimeofday(&begin, 0);
@@ -118,12 +119,13 @@ void alloc_fb(int fd, const char* filename, const char* mode){
 
 	if(DEBUG_LVL>=2){printf("Allocating memory for new file buf\n");}
 
+	file_buf* new_fb = (file_buf*) malloc(sizeof(file_buf));
+
 	if(get_fb_by_fd(fd) != NULL){ 
 		if(DEBUG_LVL>=2){printf("Error: this file buffer is already in memory\n");}
 	}
 	else{
 		file_buf* old_head = head;
-		file_buf* new_fb = (file_buf*) malloc(sizeof(file_buf));
 		new_fb->filename = filename;
 		new_fb->mode = mode;
 		new_fb->fd = fd;
@@ -138,7 +140,9 @@ void alloc_fb(int fd, const char* filename, const char* mode){
 
 		record_wallclock(begin, end, new_fb, "alloc_fb");
 	}
+	return new_fb;
 }
+
 
 void delete_fb(file_buf* fb){
 	 file_buf *temp = head, *prev;
@@ -152,13 +156,13 @@ void delete_fb(file_buf* fb){
     prev = temp;
     temp = temp->next;
   }
-
   if (temp == NULL) 
 		return;
 
   prev->next = temp->next;
   free(temp);
 }
+
 
 /* ===== INTERCEPTION ===== */
 
@@ -184,6 +188,9 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	if(!orig_fwrite){ orig_fwrite = dlsym(RTLD_NEXT, "fwrite"); }
 
 	file_buf* fb = get_fb_by_fd(fileno(stream));
+	if(!fb){ 
+		fb = alloc_fb(12, "filename", "a"); 
+	}
 	
 	int too_big = append_write(fb, ptr, nmemb);
 	if(too_big){ 
@@ -191,27 +198,9 @@ size_t fwrite(const void* ptr, size_t size, size_t nmemb, FILE* stream){
 	}
 
 	record_wallclock(begin, end, fb, "fwrite");	
-	return nmemb;
+	return nmemb;//orig retval
 }
 
-size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
-	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
-	int fd = fileno(stream);
-	file_buf* fb = get_fb_by_fd(fd);
-	if(fb){final_flush(fb);}
-	return orig_fread(ptr, size, nmemb, stream);
-}
-
-int fclose(FILE* stream){
-	int (*orig_fclose)(FILE*) = dlsym(RTLD_NEXT, "fclose");
-	int fd = fileno(stream);
-	file_buf* fb = get_fb_by_fd(fd);
-	if(fb){
-		final_flush(fb);
-		delete_fb(fb);
-	}
-		return orig_fclose(stream); 
-}
 
 ssize_t write(int fd, const void *buf, size_t count){
 	ssize_t (*orig_write)(int, const void*, size_t) = dlsym(RTLD_NEXT, "write");
@@ -228,10 +217,28 @@ ssize_t write(int fd, const void *buf, size_t count){
 			return orig_write(fd, buf, count);
 		}
 	}
-
-	return count;
+	return count;//orig retval
 }
 
+
+int fclose(FILE* stream){
+	int (*orig_fclose)(FILE*) = dlsym(RTLD_NEXT, "fclose");
+	int fd = fileno(stream);
+	file_buf* fb = get_fb_by_fd(fd);
+	if(fb){
+		final_flush(fb);
+		delete_fb(fb);
+	}
+		return orig_fclose(stream); 
+}
+
+size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
+	size_t (*orig_fread)(void *, size_t, size_t, FILE*) = dlsym(RTLD_NEXT, "fread");
+	int fd = fileno(stream);
+	file_buf* fb = get_fb_by_fd(fd);
+	if(fb){final_flush(fb);}
+	return orig_fread(ptr, size, nmemb, stream);
+}
 
 int open(const char *filename, int flags, ...){
 	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
