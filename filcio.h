@@ -71,7 +71,7 @@ void insert_fb(int, const char*, const char*);
  */
 file_buf* get_fb_by_fd(int);
 
-/* safely removes from the global linked list, frees memory */
+/* removes from the global linked list, frees memory. Classic linked list deletion.*/
 void delete_fb(file_buf*);
 
 void record_wallclock(struct timeval, struct timeval, file_buf*, char*);
