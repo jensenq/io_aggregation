@@ -254,7 +254,7 @@ ssize_t read(int fd, void *buf, size_t count){
 	return orig_read(fd, buf, count);
 }
 
-/* TODO: this needs its own locking. reusing the same from fclose causes undefined */
+/* TODO: this needs its own locking. reusing the same from fclose causes undefined behavior */
 int close(int fd){
 	int (*orig_close)(int) = dlsym(RTLD_NEXT, "close");
 	file_buf* fb = get_fb_by_fd(fd);
