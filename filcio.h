@@ -4,6 +4,8 @@
 #define _GNU_SOURCE
 #define BUF_SIZE_ENV_VAR "AGG_BUFSIZE"
 #define DEBUG_LVL_ENV_VAR "DEBUG_LVL"
+#define PASS_AGG_ENV_VAR "PASS_AGG"
+
 
 typedef struct file_buf{
 	const char* filename;
@@ -14,7 +16,11 @@ typedef struct file_buf{
 	unsigned char* bufA;  	// double buffering implemented to allow one buffer
 	unsigned char* bufB;  	// to be filled, while the other is flushed.
 	struct file_buf* next;	// this is a linked list
+	int attempted_writes;   // total num writes intercepted
+	int flushes;            // total num flushes
+	int total_data_int;     // total amt of data interecepted
 } file_buf;
+
 
 //upon flushing, main thread writes arguments here, FLUSHER reads these args
 typedef struct write_args{
@@ -23,11 +29,11 @@ typedef struct write_args{
 	size_t size;
 } write_args;
 
-//
 
 file_buf* head = NULL;
 int GLOBAL_BUF_SIZE = 32000000; //default 32MB
 int DEBUG_LVL = 0; 
+int PASS_AGG = 0; // if 1: pass aggregating IO, only count
 
 
 pthread_cond_t   cond_flush;  // flushing signal
