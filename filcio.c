@@ -58,6 +58,7 @@ void flush_buf(file_buf* fb){
 		fb->buf = fb->bufA;
 
 	fb->curr_size = 0;
+	fb->flushes++;
 
 	record_wallclock(begin2, end2, fb, "flush_memset");
 }
@@ -65,6 +66,7 @@ void flush_buf(file_buf* fb){
 
 void final_flush(file_buf* fb){
 	if(DEBUG_LVL>=2){printf("Final flush\n");}
+	fb->flushes++;
 
 	pthread_rwlock_wrlock(&rwlock);
 	write(-(fb->fd), fb->buf, fb->curr_size);
@@ -86,6 +88,7 @@ file_buf* get_fb_by_fd(int fd){
 
 int append_write(file_buf* fb, const void* buf, size_t size){
 	if(DEBUG_LVL>=2){printf("copying write to memory\n");}
+	if(PASS_AGG){return 1;}
 	
 	struct timeval begin, end;
 	gettimeofday(&begin, 0);
@@ -98,6 +101,8 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 		
 		memcpy(&fb->buf[fb->curr_size], buf, size);
 		fb->curr_size += size;
+		fb->attempted_writes++;
+		fb->total_data_int += size;
 		retval = 0;
 	}
 
@@ -116,6 +121,8 @@ file_buf* alloc_fb(int fd, const char* filename, const char* mode){
 	if(tmp!=NULL){ GLOBAL_BUF_SIZE = atoi(tmp); }
 	tmp = getenv(DEBUG_LVL_ENV_VAR);
 	if(tmp!=NULL){ DEBUG_LVL = atoi(tmp); }
+	tmp = getenv(PASS_AGG_ENV_VAR);
+	if(tmp!=NULL){ PASS_AGG = atoi(tmp); }
 
 	if(DEBUG_LVL>=2){printf("Allocating memory for new file buf\n");}
 
@@ -125,18 +132,21 @@ file_buf* alloc_fb(int fd, const char* filename, const char* mode){
 		if(DEBUG_LVL>=2){printf("Error: this file buffer is already in memory\n");}
 	}
 	else{
-		file_buf* old_head = head;
-		new_fb->filename = filename;
-		new_fb->mode = mode;
-		new_fb->fd = fd;
-		new_fb->curr_size = 0;
 		new_fb->bufA = (unsigned char*)malloc(
 			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
 		new_fb->bufB = (unsigned char*)malloc(
 			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
-		new_fb->buf = new_fb->bufA;
-		new_fb->next = old_head;
-		head = new_fb; 
+		file_buf* old_head       = head;
+		new_fb->filename         = filename;
+		new_fb->mode             = mode;
+		new_fb->fd               = fd;
+		new_fb->curr_size        = 0;
+		new_fb->buf              = new_fb->bufA;
+		new_fb->attempted_writes = 0;
+		new_fb->flushes          = 0;
+		new_fb->total_data_int   = 0;
+		new_fb->next             = old_head;
+		head                     = new_fb; 
 
 		record_wallclock(begin, end, new_fb, "alloc_fb");
 	}
@@ -145,18 +155,25 @@ file_buf* alloc_fb(int fd, const char* filename, const char* mode){
 
 
 void delete_fb(file_buf* fb){
-	 file_buf *temp = head, *prev;
+	file_buf *temp = head, *prev;
+	if(DEBUG_LVL>=1){
+		printf("File: %s\nAttempted writes: %i\nFlushes: %i\n",
+		       fb->filename, fb->attempted_writes, fb->flushes);
+		if(fb->attempted_writes > 0){
+			printf("Avg size: %d\n", fb->total_data_int / fb->attempted_writes);
+		}
+	}
 
-  if (temp != NULL && temp == fb) {
-    head = temp->next;
-    free(temp);
-    return;
-  }
-  while (temp != NULL && temp != fb) {
-    prev = temp;
-    temp = temp->next;
-  }
-  if (temp == NULL) 
+	if (temp != NULL && temp == fb) {
+		head = temp->next;
+		free(temp);
+		return;
+	}
+	while (temp != NULL && temp != fb) {
+		prev = temp;
+		temp = temp->next;
+	}
+	if (temp == NULL) 
 		return;
 
   prev->next = temp->next;
@@ -167,6 +184,7 @@ void delete_fb(file_buf* fb){
 /* ===== INTERCEPTION ===== */
 
 FILE* fopen(const char *filename, const char *mode){
+
 	FILE* (*orig_fopen)(const char*, const char*) = dlsym(RTLD_NEXT, "fopen");
 
 	//check if this is a debug file for this library
@@ -241,6 +259,7 @@ size_t fread(void *ptr, size_t size, size_t nmemb, FILE *stream){
 }
 
 int open(const char *filename, int flags, ...){
+	printf("open called\n");
 	int (*orig_open)(const char*, int) = dlsym(RTLD_NEXT,"open");
 	int orig_retval = orig_open(filename, flags);
 	alloc_fb(orig_retval, filename, "");
@@ -254,7 +273,7 @@ ssize_t read(int fd, void *buf, size_t count){
 	return orig_read(fd, buf, count);
 }
 
-/* TODO: this needs its own locking. reusing the same from fclose causes undefined */
+/* TODO: this needs its own locking. reusing the same from fclose causes undefined behavior */
 int close(int fd){
 	int (*orig_close)(int) = dlsym(RTLD_NEXT, "close");
 	file_buf* fb = get_fb_by_fd(fd);
@@ -278,7 +297,7 @@ size_t fprintf(FILE *stream, const char *format, ...){
 */
 
 void record_wallclock(struct timeval begin, struct timeval end, file_buf* fb, char* name){
-	if(DEBUG_LVL>=1){
+	if(DEBUG_LVL>=2){
 		gettimeofday(&end, NULL);
 		long seconds = end.tv_sec - begin.tv_sec;
 		long microseconds = end.tv_usec - begin.tv_usec;

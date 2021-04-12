@@ -17,9 +17,9 @@
 	```
 	- set the size of the buffer to use:
 	```bash
+
 		export AGG_BUFSIZE=32000000
 	```
-	- run your program with filcio preloaded:
 	```bash
 		LD_PRELOAD=./filcio.so ./my_prog
 	```
@@ -38,6 +38,13 @@
 		valgrind --trace-children=yes --tool=callgrind env LD_PRELOAD=./filcio.so ./test 
 		callgrind_annotate callgrind.out.1178 --inclusive=yes --tree=both
 	```
+	- pass I/O aggregation and write to disk normally, while still counting interceptions
+	```bash
+		export PASS_AGG=1
+	```
+
+	- run your program with filcio preloaded:
+
 
 * Author:
 	- Quentin Jensen
