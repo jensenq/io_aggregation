@@ -135,7 +135,6 @@ file_buf* alloc_fb(int fd, const char* filename, const char* mode){
 		new_fb->bufB = (unsigned char*)malloc(
 			sizeof(unsigned char) * (GLOBAL_BUF_SIZE+1)); 
 		file_buf* old_head       = head;
-		new_fb->_struct_id_      = 111111111;
 		new_fb->filename         = filename;
 		new_fb->mode             = mode;
 		new_fb->fd               = fd;
