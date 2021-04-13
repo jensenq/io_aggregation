@@ -23,11 +23,18 @@ typedef struct file_buf{
 
 
 //upon flushing, main thread writes arguments here, FLUSHER reads these args
-typedef struct write_args{
+typedef struct flush_args{
 	int fd;
 	void* buf;
 	size_t size;
-} write_args;
+} flush_args;
+
+//approaching a memcpy, main thread writes arguments here, MEMCPYR reads these args
+typedef struct memcpy_args{
+	file_buf* fb;
+	void* buf;
+	size_t size;
+} memcpy_args;
 
 
 file_buf* head = NULL;
@@ -38,23 +45,30 @@ int PASS_AGG = 0; // if 1: pass aggregating IO, only count
 
 pthread_cond_t   cond_flush;  // flushing signal
 pthread_mutex_t  mutex_flush; // ^
-
-write_args       wa;          // data about a flush
-pthread_mutex_t  mutex_wa;    // protects wa
+flush_args       fa;          // data about a flush
+pthread_mutex_t  mutex_fa;    // protects fa
 pthread_t        FLUSHER;     // single thread waits for signal.
-pthread_rwlock_t rwlock = PTHREAD_RWLOCK_INITIALIZER;
+pthread_rwlock_t flushlock = PTHREAD_RWLOCK_INITIALIZER;
+
+pthread_cond_t   cond_memcpy;  // memcpy signal
+pthread_mutex_t  mutex_memcpy; // ^
+memcpy_args       mca;          // data about a memcpy
+pthread_mutex_t  mutex_mca;    // protects mca
+pthread_t        MEMCPYR;     // single thread waits for signal.
+pthread_rwlock_t memcpylock = PTHREAD_RWLOCK_INITIALIZER;
+
 
 //
 
 /* ======== Docs and Defs ======== */
 
 /* spins FLUSHER if it's not spun yet (aka this is the first flush). Then passes 
-   data about this flush to the global variable, wa, and signals FLUSHER to flush.
+   data about this flush to the global variable, fa, and signals FLUSHER to flush.
    finally, resets the file_buf's buffer */
 void flush_buf(file_buf*);
 
 /* upon receiving the signal that it's time to flush, reads the global variable, 
-   wa, then flushes. This (hopefully) allows the rest of the program to carry on 
+   fa, then flushes. This (hopefully) allows the rest of the program to carry on 
    without blocking. */
 void* flush_handler(void*);
 

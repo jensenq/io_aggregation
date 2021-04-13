@@ -43,7 +43,7 @@ int main(int argc, char** argv){
 		  mkdir(prefix, 0700);
 	 } 
 	if(!UNIQUE_STRS){
-		rand_string(rs, MAX_SIZE);	
+		rs = "hello world\n";
 	}
 
 

@@ -15,11 +15,10 @@ void* flush_handler(void* args){
 		pthread_mutex_lock(&mutex_flush);
 
 		pthread_cond_wait(&cond_flush, &mutex_flush);
-		if(DEBUG_LVL>=2){printf("Thread 2 writing to disk\n");}
 
-		pthread_rwlock_wrlock(&rwlock);
-		int tmp = write(wa.fd, wa.buf, wa.size);
-		pthread_rwlock_unlock(&rwlock);
+		pthread_rwlock_wrlock(&flushlock);
+			int tmp = write(fa.fd, fa.buf, fa.size);
+		pthread_rwlock_unlock(&flushlock);
 	
 		pthread_mutex_unlock(&mutex_flush);
 	}
@@ -34,18 +33,18 @@ void flush_buf(file_buf* fb){
 		
 		pthread_mutex_init(&mutex_flush, NULL);
 		pthread_cond_init(&cond_flush, NULL);
-		pthread_mutex_init(&mutex_wa, NULL);
+		pthread_mutex_init(&mutex_fa, NULL);
 
 		pthread_create(&FLUSHER, NULL, &flush_handler, NULL);
 	}
 
 	// data about this flush placed in global buffer for FLUSHER to read.
-	pthread_mutex_lock(&mutex_wa);
-		wa.fd   = -1*fb->fd; //negative fd signals this is a normal write.
-		wa.buf  = fb->buf;
-		wa.size = fb->curr_size;
+	pthread_mutex_lock(&mutex_fa);
+		fa.fd   = -1*fb->fd; //negative fd signals this is a normal write.
+		fa.buf  = fb->buf;
+		fa.size = fb->curr_size;
 		pthread_cond_signal(&cond_flush);
-	pthread_mutex_unlock(&mutex_wa);
+	pthread_mutex_unlock(&mutex_fa);
 
 	record_wallclock(begin, end, fb, "flush");
 	struct timeval begin2, end2;
@@ -68,23 +67,25 @@ void final_flush(file_buf* fb){
 	if(DEBUG_LVL>=2){printf("Final flush\n");}
 	fb->flushes++;
 
-	pthread_rwlock_wrlock(&rwlock);
+	pthread_rwlock_wrlock(&flushlock);
 	write(-(fb->fd), fb->buf, fb->curr_size);
-	pthread_rwlock_unlock(&rwlock);
+	pthread_rwlock_unlock(&flushlock);
 }
 
+void* memcpy_handler(void* args){
 
-file_buf* get_fb_by_fd(int fd){
-	file_buf* tmp = head;
-	while(tmp != NULL){
-		if(tmp->fd == fd){
-			return tmp;
-		}
-		tmp = tmp->next;
+	while(1){
+		pthread_mutex_lock(&mutex_memcpy);
+
+		pthread_cond_wait(&cond_memcpy, &mutex_memcpy);
+		
+		pthread_rwlock_wrlock(&memcpylock);
+			memcpy(&mca.fb->buf[mca.fb->curr_size], mca.buf, mca.size);
+		pthread_rwlock_unlock(&memcpylock);
+	
+		pthread_mutex_unlock(&mutex_memcpy);
 	}
-	return tmp;
 }
-
 
 int append_write(file_buf* fb, const void* buf, size_t size){
 	if(DEBUG_LVL>=2){printf("copying write to memory\n");}
@@ -99,15 +100,42 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 			flush_buf(fb);
 		}
 		
-		memcpy(&fb->buf[fb->curr_size], buf, size);
-		fb->curr_size += size;
-		fb->attempted_writes++;
-		fb->total_data_int += size;
-		retval = 0;
-	}
+		if(!MEMCPYR){
+			pthread_mutex_init(&mutex_memcpy, NULL);
+			pthread_cond_init( &cond_memcpy,  NULL);
+			pthread_mutex_init(&mutex_mca,    NULL);
+			pthread_create(&MEMCPYR, NULL, &memcpy_handler, NULL);
+		}
+
+			fb->curr_size += size;
+			fb->attempted_writes++;
+			fb->total_data_int += size;
+			retval = 0;
+
+			// data about this memcpy placed in global buffer for MEMCPYR to read.
+			pthread_mutex_lock(&mutex_mca);
+				mca.fb  = fb;
+				mca.buf  = fb->buf;
+				mca.size = fb->curr_size;
+				pthread_cond_signal(&cond_memcpy);
+			pthread_mutex_unlock(&mutex_mca);
+
+		}
 
 	record_wallclock(begin, end, fb, "append_write");
 	return retval;
+}
+
+
+file_buf* get_fb_by_fd(int fd){
+	file_buf* tmp = head;
+	while(tmp != NULL){
+		if(tmp->fd == fd){
+			return tmp;
+		}
+		tmp = tmp->next;
+	}
+	return tmp;
 }
 
 
