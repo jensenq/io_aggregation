@@ -32,7 +32,7 @@ typedef struct flush_args{
 //approaching a memcpy, main thread writes arguments here, MEMCPYR reads these args
 typedef struct memcpy_args{
 	file_buf* fb;
-	void* buf;
+	const void* buf;
 	size_t size;
 } memcpy_args;
 

@@ -81,6 +81,9 @@ void* memcpy_handler(void* args){
 		
 		pthread_rwlock_wrlock(&memcpylock);
 			memcpy(&mca.fb->buf[mca.fb->curr_size], mca.buf, mca.size);
+			mca.fb->curr_size += mca.size;
+			mca.fb->attempted_writes++;
+			mca.fb->total_data_int += mca.size;
 		pthread_rwlock_unlock(&memcpylock);
 	
 		pthread_mutex_unlock(&mutex_memcpy);
@@ -106,19 +109,15 @@ int append_write(file_buf* fb, const void* buf, size_t size){
 			pthread_mutex_init(&mutex_mca,    NULL);
 			pthread_create(&MEMCPYR, NULL, &memcpy_handler, NULL);
 		}
-
-			fb->curr_size += size;
-			fb->attempted_writes++;
-			fb->total_data_int += size;
-			retval = 0;
-
 			// data about this memcpy placed in global buffer for MEMCPYR to read.
 			pthread_mutex_lock(&mutex_mca);
 				mca.fb  = fb;
-				mca.buf  = fb->buf;
-				mca.size = fb->curr_size;
+				mca.buf  = buf;
+				mca.size = size;
 				pthread_cond_signal(&cond_memcpy);
 			pthread_mutex_unlock(&mutex_mca);
+
+			retval = 0;
 
 		}
 

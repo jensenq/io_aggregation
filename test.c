@@ -42,10 +42,6 @@ int main(int argc, char** argv){
 	 if (stat(prefix, &st) == -1) {
 		  mkdir(prefix, 0700);
 	 } 
-	if(!UNIQUE_STRS){
-		rs = "hello world\n";
-	}
-
 
 	 for(int j=0; j<NUM_FILES; j++){
 		  char fname[64] = "";
@@ -58,9 +54,13 @@ int main(int argc, char** argv){
 				if(UNIQUE_STRS){
 					size_t size = rand() % MAX_SIZE;
 					rand_string(rs, size);	
+		  			fwrite(rs, sizeof(char), MAX_SIZE, fp );
+				} else{
+					sprintf(rs,"%d\n",i);
+					printf(rs);
+		  			fwrite(rs, sizeof(char), strlen(rs), fp );
 				}
 
-		  fwrite(rs, sizeof(char), MAX_SIZE, fp );
 		}
 		fclose(fp);
 	}
