@@ -1,3 +1,5 @@
+# FILCIO (File Interception Library for Collective I/O)
+### Application Agnostic I/O Aggregation to Scale Scientific Workflows
 * About 
 	- Many bioinformatics pipelines consist of black-box tools that each generate significant I/O. 
 		When strung together by reading and writing files, each stage of the pipeline is bottlenecked by I/O, 
@@ -5,50 +7,50 @@
 		calls at a system level, aggregating their data in memory before writing to disk. This technique hopes 
 		to scale I/O intensive bioinformatics pipelines without needing to access and modify the source code 
 		of black-box tools that it may be comprised of.
-	- FILCIO (File Interception Library for Collective I/O) intercepts function calls that write to disk, and 
+	- FILCIO intercepts function calls that write to disk, and 
 		instead writes them to a double-buffer in memory. When this buffer is full, it then flushes to disk. 
 		This changes the I/O characteristic of a program from large volume of small writes to a small volume of 
 		large writes. 
 
 * Getting Started:
-	- compile the shared library file:
+	- Compile the shared library file:
 	```bash
 		gcc -O3 -pthread -shared -fPIC  filcio.c -o filcio.so -ldl
 	```
-	- set the size of the buffer to use:
+	- Set the size of the buffer to use:
 	```bash
 
 		export AGG_BUFSIZE=32000000
 	```
+ 	- Run your program with FILCIO preloaded
 	```bash
-		LD_PRELOAD=./filcio.so ./my_prog
+		LD_PRELOAD=./filcio.so ./my_program
 	```
 
-* debug info:
-	- preload filcio in gdb:
+* Debug info:
+	- Preload FILCIO while in GDB:
 	```bash
 		set environment LD_PRELOAD ./filcio.so
 	```
-	- crashing before main? 
+	- Crashing before main? 
 	```bash
 		ulimit -c unlimited
 	```
-	- profile function calls:
+	- Profile function calls:
 	```bash
-		valgrind --trace-children=yes --tool=callgrind env LD_PRELOAD=./filcio.so ./test 
+		valgrind --trace-children=yes --tool=callgrind env LD_PRELOAD=./filcio.so ./my_program 
 		callgrind_annotate callgrind.out.1178 --inclusive=yes --tree=both
 	```
-	- pass I/O aggregation and write to disk normally, while still counting interceptions
+	- Pass I/O aggregation and write to disk normally, while still counting interceptions
 	```bash
 		export PASS_AGG=1
 	```
-
-	- run your program with filcio preloaded:
 
 
 * Author:
 	- Quentin Jensen
 
-* special thanks to:
+* Special thanks to:
 	- Dr Filip Jagodzinski 
 	- Dr Tanzima Islam
+* Read the paper [here](https://ieeexplore.ieee.org/abstract/document/9529917)
